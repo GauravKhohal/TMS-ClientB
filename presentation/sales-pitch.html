@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TMS — Transport Management System | Sales Pitch</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --blue:    #1d4ed8;
+    --blue-lt: #3b82f6;
+    --blue-dk: #1e3a8a;
+    --teal:    #0d9488;
+    --amber:   #d97706;
+    --red:     #dc2626;
+    --green:   #16a34a;
+    --slate:   #334155;
+    --slate-lt:#f1f5f9;
+    --white:   #ffffff;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f172a;
+    overflow: hidden;
+  }
+
+  /* ── Slideshow shell ───────────────────────────── */
+  #deck { width: 100vw; height: 100vh; position: relative; }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; justify-content: center; align-items: center;
+    padding: 60px 80px;
+    opacity: 0; transform: translateY(30px);
+    transition: opacity .45s ease, transform .45s ease;
+    pointer-events: none;
+  }
+  .slide.active {
+    opacity: 1; transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* ── Navigation ────────────────────────────────── */
+  #nav {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 10px; z-index: 100;
+  }
+  #nav button {
+    background: rgba(255,255,255,.15); border: none; border-radius: 50%;
+    width: 36px; height: 36px; cursor: pointer; color: white; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .2s;
+  }
+  #nav button:hover { background: rgba(255,255,255,.35); }
+  #nav button:disabled { opacity: .3; cursor: default; }
+
+  #progress {
+    position: fixed; bottom: 36px; right: 48px;
+    color: rgba(255,255,255,.5); font-size: 13px; z-index: 100;
+  }
+
+  #dots {
+    position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 7px; z-index: 99; margin-bottom: 42px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,.25); transition: background .2s, transform .2s;
+  }
+  .dot.on { background: white; transform: scale(1.3); }
+
+  /* ── Slide 1 — Hero ────────────────────────────── */
+  #s1 {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0d9488 100%);
+    text-align: center;
+  }
+  #s1 .logo-ring {
+    width: 90px; height: 90px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--blue-lt), var(--teal));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 38px; margin: 0 auto 24px; box-shadow: 0 0 40px rgba(59,130,246,.5);
+  }
+  #s1 h1 { font-size: 56px; font-weight: 800; color: white; letter-spacing: -1px; line-height: 1.1; }
+  #s1 h1 span { color: #67e8f9; }
+  #s1 .sub { font-size: 22px; color: rgba(255,255,255,.7); margin-top: 14px; font-weight: 300; }
+  #s1 .tagline {
+    margin-top: 32px; padding: 12px 28px;
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+    border-radius: 40px; color: white; font-size: 15px; letter-spacing: .5px;
+  }
+  #s1 .chips { display: flex; gap: 12px; margin-top: 32px; flex-wrap: wrap; justify-content: center; }
+  #s1 .chip {
+    padding: 6px 16px; border-radius: 20px;
+    background: rgba(255,255,255,.12); color: rgba(255,255,255,.85); font-size: 13px;
+  }
+
+  /* ── Slide 2 — Problem ─────────────────────────── */
+  #s2 { background: #0f172a; }
+  .slide-title { font-size: 40px; font-weight: 800; color: white; margin-bottom: 8px; }
+  .slide-sub { font-size: 16px; color: rgba(255,255,255,.5); margin-bottom: 40px; }
+
+  .pain-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 100%; max-width: 960px; }
+  .pain-card {
+    background: rgba(220,38,38,.12); border: 1px solid rgba(220,38,38,.25);
+    border-radius: 16px; padding: 24px 20px; text-align: center;
+  }
+  .pain-card .icon { font-size: 36px; margin-bottom: 12px; }
+  .pain-card h3 { color: #fca5a5; font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .pain-card p { color: rgba(255,255,255,.55); font-size: 13px; line-height: 1.6; }
+
+  /* ── Slide 3 — Solution ────────────────────────── */
+  #s3 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 100%); }
+  .sol-center { text-align: center; max-width: 800px; }
+  .sol-center h2 { font-size: 42px; font-weight: 800; color: white; line-height: 1.2; }
+  .sol-center h2 span { color: #67e8f9; }
+  .sol-center p { color: rgba(255,255,255,.65); font-size: 17px; margin: 20px 0 36px; line-height: 1.7; }
+  .sol-metrics { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; }
+  .sol-metric { text-align: center; }
+  .sol-metric .num { font-size: 44px; font-weight: 800; color: #67e8f9; line-height: 1; }
+  .sol-metric .lbl { color: rgba(255,255,255,.55); font-size: 13px; margin-top: 6px; }
+
+  /* ── Slide 4 — Modules ─────────────────────────── */
+  #s4 { background: #0f172a; }
+  .modules-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%; max-width: 1000px; }
+  .mod-card {
+    border-radius: 14px; padding: 22px 18px;
+    border: 1px solid rgba(255,255,255,.08);
+    transition: transform .2s, border-color .2s;
+  }
+  .mod-card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,.2); }
+  .mod-card .icon { font-size: 28px; margin-bottom: 10px; }
+  .mod-card h3 { font-size: 14px; font-weight: 700; color: white; margin-bottom: 6px; }
+  .mod-card p { font-size: 12px; color: rgba(255,255,255,.5); line-height: 1.5; }
+  .mod-blue    { background: rgba(29,78,216,.2); }
+  .mod-teal    { background: rgba(13,148,136,.2); }
+  .mod-amber   { background: rgba(217,119,6,.2); }
+  .mod-green   { background: rgba(22,163,74,.2); }
+  .mod-red     { background: rgba(220,38,38,.2); }
+  .mod-purple  { background: rgba(147,51,234,.2); }
+  .mod-indigo  { background: rgba(99,102,241,.2); }
+  .mod-slate   { background: rgba(100,116,139,.2); }
+
+  /* ── Slide 5 — Dashboard ───────────────────────── */
+  #s5 { background: #0f172a; }
+  .dash-layout { display: flex; gap: 32px; width: 100%; max-width: 1020px; align-items: flex-start; }
+  .dash-left { flex: 1; }
+  .dash-right { width: 300px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+  .kpi {
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 12px; padding: 16px 14px;
+  }
+  .kpi .val { font-size: 28px; font-weight: 800; color: white; }
+  .kpi .lbl { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 3px; text-transform: uppercase; letter-spacing: .5px; }
+  .kpi .chg { font-size: 11px; color: #4ade80; margin-top: 4px; }
+
+  .chart-mock {
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  }
+  .chart-mock h4 { font-size: 12px; color: rgba(255,255,255,.5); margin-bottom: 12px; text-transform: uppercase; letter-spacing: .5px; }
+
+  .bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .bar-label { font-size: 11px; color: rgba(255,255,255,.5); width: 52px; text-align: right; flex-shrink: 0; }
+  .bar-track { flex: 1; height: 8px; background: rgba(255,255,255,.08); border-radius: 4px; }
+  .bar-fill { height: 100%; border-radius: 4px; }
+  .bar-pct { font-size: 11px; color: rgba(255,255,255,.5); width: 32px; }
+
+  .status-list { display: flex; flex-direction: column; gap: 10px; }
+  .status-item {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,.05); border-radius: 10px; padding: 12px 14px;
+  }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-item .lbl { font-size: 13px; color: rgba(255,255,255,.7); flex: 1; }
+  .status-item .cnt { font-size: 18px; font-weight: 700; color: white; }
+
+  /* ── Slide 6 — Fleet Management ────────────────── */
+  #s6 { background: #0f172a; }
+  .feature-layout { display: flex; gap: 40px; width: 100%; max-width: 1000px; align-items: center; }
+  .feature-left { flex: 1; }
+  .feature-left h2 { font-size: 34px; font-weight: 800; color: white; line-height: 1.2; margin-bottom: 12px; }
+  .feature-left h2 span { color: #67e8f9; }
+  .feature-left p { color: rgba(255,255,255,.6); font-size: 15px; line-height: 1.7; margin-bottom: 24px; }
+  .feat-list { display: flex; flex-direction: column; gap: 10px; }
+  .feat-item { display: flex; gap: 10px; align-items: flex-start; }
+  .feat-check { color: #4ade80; font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .feat-item p { font-size: 14px; color: rgba(255,255,255,.7); line-height: 1.5; }
+
+  .vehicle-table {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px; overflow: hidden; width: 420px;
+  }
+  .vt-head {
+    display: grid; grid-template-columns: 1fr 80px 70px 70px;
+    padding: 10px 14px; background: rgba(255,255,255,.07);
+    font-size: 11px; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .5px;
+  }
+  .vt-row {
+    display: grid; grid-template-columns: 1fr 80px 70px 70px;
+    padding: 11px 14px; border-top: 1px solid rgba(255,255,255,.05);
+    font-size: 13px; align-items: center;
+  }
+  .vt-row .reg { color: white; font-weight: 600; font-size: 12px; }
+  .vt-row .make { color: rgba(255,255,255,.5); font-size: 11px; margin-top: 1px; }
+  .badge {
+    display: inline-flex; align-items: center; padding: 3px 8px;
+    border-radius: 20px; font-size: 10px; font-weight: 600;
+  }
+  .badge-green  { background: rgba(22,163,74,.2);  color: #4ade80; }
+  .badge-yellow { background: rgba(234,179,8,.2);  color: #fbbf24; }
+  .badge-blue   { background: rgba(59,130,246,.2); color: #93c5fd; }
+  .badge-red    { background: rgba(220,38,38,.2);  color: #fca5a5; }
+  .util-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); margin-top: 4px; }
+  .util-fill { height: 100%; border-radius: 3px; }
+
+  /* ── Slide 7 — Trips ───────────────────────────── */
+  #s7 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 100%); }
+
+  .trips-layout { display: flex; gap: 36px; width: 100%; max-width: 1000px; }
+  .trips-left { flex: 1; }
+  .trips-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .trips-left h2 span { color: #67e8f9; }
+  .trips-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .trip-cards { display: flex; flex-direction: column; gap: 12px; width: 380px; }
+  .trip-card {
+    background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .trip-card .trip-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .trip-card .trip-id { font-size: 13px; font-weight: 700; color: white; }
+  .trip-card .trip-route { font-size: 13px; color: rgba(255,255,255,.65); margin-bottom: 6px; }
+  .trip-card .trip-meta { display: flex; gap: 16px; }
+  .trip-card .trip-meta span { font-size: 11px; color: rgba(255,255,255,.4); }
+  .trip-card .trip-meta strong { color: rgba(255,255,255,.75); }
+
+  /* ── Slide 8 — Drivers ─────────────────────────── */
+  #s8 { background: #0f172a; }
+  .driver-layout { display: flex; gap: 36px; width: 100%; max-width: 1000px; align-items: flex-start; }
+  .driver-left { flex: 1; }
+  .driver-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .driver-left h2 span { color: #67e8f9; }
+  .driver-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .perf-board {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px; overflow: hidden; width: 400px;
+  }
+  .pb-header { padding: 14px 18px; background: rgba(255,255,255,.07); }
+  .pb-header h4 { font-size: 13px; font-weight: 700; color: white; }
+  .pb-header p  { font-size: 11px; color: rgba(255,255,255,.4); }
+  .pb-row { padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.05); }
+  .pb-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .pb-name { font-size: 13px; color: white; font-weight: 600; }
+  .pb-score { font-size: 13px; font-weight: 700; }
+  .pb-bar-track { height: 5px; border-radius: 3px; background: rgba(255,255,255,.1); }
+  .pb-bar-fill { height: 100%; border-radius: 3px; }
+
+  /* ── Slide 9 — Compliance ──────────────────────── */
+  #s9 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 100%); }
+  .comp-layout { display: flex; gap: 40px; width: 100%; max-width: 1000px; align-items: flex-start; }
+  .comp-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .comp-left h2 span { color: #fcd34d; }
+  .comp-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .comp-matrix {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px; overflow: hidden; min-width: 420px;
+  }
+  .cm-head {
+    display: grid; grid-template-columns: 60px repeat(6, 1fr);
+    padding: 8px 10px; background: rgba(255,255,255,.07);
+    font-size: 9px; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .4px;
+    gap: 4px;
+  }
+  .cm-row {
+    display: grid; grid-template-columns: 60px repeat(6, 1fr);
+    padding: 8px 10px; border-top: 1px solid rgba(255,255,255,.05); gap: 4px;
+    align-items: center;
+  }
+  .cm-vid { font-size: 11px; font-weight: 700; color: white; }
+  .cm-cell { display: flex; justify-content: center; }
+  .cm-badge {
+    padding: 2px 6px; border-radius: 8px; font-size: 9px; font-weight: 700; text-align: center;
+  }
+  .cm-green  { background: rgba(22,163,74,.25);   color: #4ade80; }
+  .cm-orange { background: rgba(234,179,8,.25);   color: #fbbf24; }
+  .cm-red    { background: rgba(220,38,38,.25);   color: #fca5a5; }
+
+  /* ── Slide 10 — Costing ────────────────────────── */
+  #s10 { background: #0f172a; }
+  .cost-layout { display: flex; gap: 36px; width: 100%; max-width: 1000px; align-items: flex-start; }
+  .cost-left { flex: 1; }
+  .cost-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .cost-left h2 span { color: #34d399; }
+  .cost-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .cost-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .cost-kpi {
+    padding: 16px 14px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,.1);
+    background: rgba(255,255,255,.05);
+  }
+  .cost-kpi .num { font-size: 26px; font-weight: 800; }
+  .cost-kpi .lbl { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 3px; }
+
+  .pie-legend { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .pie-item { display: flex; align-items: center; gap: 8px; }
+  .pie-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .pie-lbl { font-size: 12px; color: rgba(255,255,255,.6); flex: 1; }
+  .pie-pct { font-size: 12px; color: rgba(255,255,255,.8); font-weight: 600; }
+
+  .cost-table {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px; overflow: hidden;
+  }
+  .ct-head {
+    display: grid; grid-template-columns: 60px 90px 90px 90px 90px;
+    padding: 9px 14px; background: rgba(255,255,255,.07);
+    font-size: 10px; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .4px;
+  }
+  .ct-row {
+    display: grid; grid-template-columns: 60px 90px 90px 90px 90px;
+    padding: 10px 14px; border-top: 1px solid rgba(255,255,255,.05); font-size: 12px;
+  }
+  .ct-row .id { color: rgba(255,255,255,.6); }
+  .ct-row .rev { color: white; font-weight: 600; }
+  .ct-row .cost { color: #fca5a5; }
+  .ct-row .profit { color: #4ade80; font-weight: 600; }
+
+  /* ── Slide 11 — Analytics ──────────────────────── */
+  #s11 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 100%); }
+  .analytics-layout { display: flex; gap: 36px; width: 100%; max-width: 1000px; align-items: flex-start; }
+  .analytics-left { flex: 1; }
+  .analytics-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .analytics-left h2 span { color: #a78bfa; }
+  .analytics-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .analytics-charts { display: flex; flex-direction: column; gap: 12px; width: 420px; }
+
+  .mini-chart {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .mini-chart h4 { font-size: 11px; color: rgba(255,255,255,.45); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .5px; }
+
+  .line-chart { height: 52px; position: relative; }
+  .line-chart svg { width: 100%; height: 100%; }
+
+  .rev-bars { display: flex; align-items: flex-end; gap: 5px; height: 60px; }
+  .rev-bar { flex: 1; border-radius: 3px 3px 0 0; transition: opacity .2s; }
+  .rev-bar:hover { opacity: .8; }
+
+  .fuel-line { display: flex; gap: 5px; }
+  .fuel-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .driver-rank { display: flex; flex-direction: column; gap: 7px; }
+  .dr-row { display: flex; align-items: center; gap: 8px; }
+  .dr-medal { font-size: 14px; width: 20px; text-align: center; }
+  .dr-name { font-size: 12px; color: rgba(255,255,255,.75); flex: 1; }
+  .dr-bar-track { width: 80px; height: 6px; background: rgba(255,255,255,.1); border-radius: 3px; }
+  .dr-bar-fill { height: 100%; border-radius: 3px; }
+  .dr-score { font-size: 12px; font-weight: 700; color: #a78bfa; width: 28px; text-align: right; }
+
+  /* ── Slide 12 — Alerts ─────────────────────────── */
+  #s12 { background: #0f172a; }
+  .alerts-layout { display: flex; gap: 36px; width: 100%; max-width: 1000px; align-items: flex-start; }
+  .alerts-left { flex: 1; }
+  .alerts-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .alerts-left h2 span { color: #f87171; }
+  .alerts-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .alert-list { display: flex; flex-direction: column; gap: 10px; width: 400px; }
+  .alert-card {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 12px 14px;
+    border-left-width: 4px; border-left-style: solid;
+  }
+  .alert-card.critical { border-left-color: #ef4444; }
+  .alert-card.high     { border-left-color: #f97316; }
+  .alert-card.medium   { border-left-color: #eab308; }
+  .alert-card.low      { border-left-color: #3b82f6; }
+  .alert-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+  .alert-type { font-size: 13px; font-weight: 700; color: white; }
+  .alert-msg { font-size: 12px; color: rgba(255,255,255,.5); }
+  .alert-meta { display: flex; gap: 10px; margin-top: 5px; }
+  .alert-meta span { font-size: 11px; color: rgba(255,255,255,.35); }
+
+  /* ── Slide 13 — RBAC ───────────────────────────── */
+  #s13 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 100%); }
+  .rbac-layout { display: flex; gap: 40px; width: 100%; max-width: 1000px; }
+  .rbac-left { flex: 1; }
+  .rbac-left h2 { font-size: 34px; font-weight: 800; color: white; margin-bottom: 10px; }
+  .rbac-left h2 span { color: #67e8f9; }
+  .rbac-left p { color: rgba(255,255,255,.6); font-size: 14px; line-height: 1.7; margin-bottom: 22px; }
+
+  .role-cards { display: flex; flex-direction: column; gap: 9px; width: 400px; }
+  .role-card {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px; padding: 12px 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .role-icon { font-size: 24px; width: 40px; text-align: center; }
+  .role-info { flex: 1; }
+  .role-info h4 { font-size: 13px; font-weight: 700; color: white; }
+  .role-info p { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 2px; }
+  .role-perms { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+  .perm-chip {
+    font-size: 9px; padding: 2px 7px; border-radius: 10px;
+    background: rgba(255,255,255,.1); color: rgba(255,255,255,.6);
+  }
+
+  /* ── Slide 14 — Tech Stack ─────────────────────── */
+  #s14 { background: #0f172a; text-align: center; }
+  .tech-title { font-size: 38px; font-weight: 800; color: white; margin-bottom: 8px; }
+  .tech-sub { color: rgba(255,255,255,.5); font-size: 15px; margin-bottom: 40px; }
+  .tech-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: 100%; max-width: 800px; }
+  .tech-card {
+    background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px; padding: 22px 16px; text-align: center;
+  }
+  .tech-card .t-icon { font-size: 32px; margin-bottom: 10px; }
+  .tech-card h3 { font-size: 14px; font-weight: 700; color: white; }
+  .tech-card p  { font-size: 11px; color: rgba(255,255,255,.45); margin-top: 4px; }
+
+  /* ── Slide 15 — Value Prop ─────────────────────── */
+  #s15 { background: linear-gradient(160deg, #0f172a 0%, #1e3a8a 100%); }
+  .value-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 900px; }
+  .value-card {
+    background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
+    border-radius: 16px; padding: 24px 20px;
+  }
+  .value-card .v-icon { font-size: 32px; margin-bottom: 12px; }
+  .value-card h3 { font-size: 15px; font-weight: 700; color: white; margin-bottom: 8px; }
+  .value-card p  { font-size: 13px; color: rgba(255,255,255,.55); line-height: 1.6; }
+  .value-card .stat { font-size: 30px; font-weight: 800; color: #67e8f9; margin: 10px 0 4px; }
+
+  /* ── Slide 16 — CTA ────────────────────────────── */
+  #s16 {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 60%, #0d9488 100%);
+    text-align: center;
+  }
+  #s16 h2 { font-size: 50px; font-weight: 800; color: white; margin-bottom: 12px; line-height: 1.1; }
+  #s16 h2 span { color: #67e8f9; }
+  #s16 p { font-size: 18px; color: rgba(255,255,255,.65); margin-bottom: 40px; }
+  .cta-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .cta-btn {
+    padding: 14px 36px; border-radius: 50px; font-size: 15px; font-weight: 700;
+    cursor: pointer; border: none; letter-spacing: .3px;
+    transition: transform .2s, box-shadow .2s;
+  }
+  .cta-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+  .cta-primary { background: white; color: #1e3a8a; }
+  .cta-secondary { background: transparent; color: white; border: 2px solid rgba(255,255,255,.4); }
+  .contact-row { display: flex; gap: 32px; margin-top: 40px; justify-content: center; flex-wrap: wrap; }
+  .contact-item { color: rgba(255,255,255,.6); font-size: 14px; }
+  .contact-item strong { color: white; display: block; margin-bottom: 2px; }
+
+  /* ── Keyboard hint ─────────────────────────────── */
+  #hint {
+    position: fixed; top: 20px; right: 24px;
+    color: rgba(255,255,255,.25); font-size: 12px; z-index: 100;
+  }
+</style>
+</head>
+<body>
+<div id="deck">
+
+  <!-- ────────────── SLIDE 1: HERO ────────────────── -->
+  <div class="slide" id="s1">
+    <div class="logo-ring">🚛</div>
+    <h1>Transport<br><span>Management System</span></h1>
+    <div class="sub">End-to-end fleet intelligence for modern logistics</div>
+    <div class="tagline">Powering smarter fleets &mdash; from dispatch to delivery</div>
+    <div class="chips">
+      <div class="chip">🚗 Fleet Tracking</div>
+      <div class="chip">📋 Compliance</div>
+      <div class="chip">📊 Analytics</div>
+      <div class="chip">💰 Cost Control</div>
+      <div class="chip">🔔 Smart Alerts</div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 2: PROBLEM ─────────────── -->
+  <div class="slide" id="s2">
+    <div style="text-align:center; margin-bottom:36px;">
+      <div class="slide-title">The Problem with Today's Fleet Operations</div>
+      <div class="slide-sub">Manual processes, fragmented systems, and zero visibility cost you every day</div>
+    </div>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <div class="icon">📉</div>
+        <h3>No Real-Time Visibility</h3>
+        <p>Fleet managers have no live view of where vehicles are, what's delayed, or what's breaking down right now.</p>
+      </div>
+      <div class="pain-card">
+        <div class="icon">📑</div>
+        <h3>Compliance Chaos</h3>
+        <p>Insurance, fitness, permit renewals tracked in spreadsheets. One missed expiry = vehicle off the road + penalty.</p>
+      </div>
+      <div class="pain-card">
+        <div class="icon">💸</div>
+        <h3>Leaking Profits</h3>
+        <p>No per-trip P&L, no fuel efficiency tracking, no cost-per-km visibility. Margins erode silently.</p>
+      </div>
+      <div class="pain-card">
+        <div class="icon">🧾</div>
+        <h3>Driver Accountability Gap</h3>
+        <p>Speed violations, fuel misuse, unsafe behaviour — discovered weeks later if at all.</p>
+      </div>
+      <div class="pain-card">
+        <div class="icon">🔀</div>
+        <h3>Siloed Information</h3>
+        <p>Operations, accounts, and dispatch all work in different tools. Nobody has the full picture.</p>
+      </div>
+      <div class="pain-card">
+        <div class="icon">⏱️</div>
+        <h3>Delayed Decisions</h3>
+        <p>Reports take days to compile. By the time management sees the data, the window to act has closed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 3: SOLUTION ────────────── -->
+  <div class="slide" id="s3">
+    <div class="sol-center">
+      <div style="font-size:13px; color:#67e8f9; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px;">Introducing</div>
+      <h2>One Platform.<br><span>Complete Control.</span></h2>
+      <p>TMS unifies fleet, drivers, trips, compliance, costs, and analytics into a single real-time dashboard — giving every stakeholder exactly the visibility they need, the moment they need it.</p>
+      <div class="sol-metrics">
+        <div class="sol-metric">
+          <div class="num">10+</div>
+          <div class="lbl">Integrated Modules</div>
+        </div>
+        <div class="sol-metric">
+          <div class="num">5</div>
+          <div class="lbl">Role-Based Portals</div>
+        </div>
+        <div class="sol-metric">
+          <div class="num">360°</div>
+          <div class="lbl">Fleet Visibility</div>
+        </div>
+        <div class="sol-metric">
+          <div class="num">Live</div>
+          <div class="lbl">Alerts & Notifications</div>
+        </div>
+        <div class="sol-metric">
+          <div class="num">₹</div>
+          <div class="lbl">Per-Trip P&amp;L</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 4: MODULES ─────────────── -->
+  <div class="slide" id="s4">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div class="slide-title">Everything in One Place</div>
+      <div class="slide-sub">10 fully integrated modules covering every aspect of fleet operations</div>
+    </div>
+    <div class="modules-grid">
+      <div class="mod-card mod-blue">
+        <div class="icon">📊</div>
+        <h3>Live Dashboard</h3>
+        <p>Real-time KPIs, fleet status, revenue trends, and utilisation at a glance.</p>
+      </div>
+      <div class="mod-card mod-teal">
+        <div class="icon">🚛</div>
+        <h3>Fleet Management</h3>
+        <p>Full vehicle register — GPS location, speed, odometer, documents, utilisation.</p>
+      </div>
+      <div class="mod-card mod-amber">
+        <div class="icon">🗺️</div>
+        <h3>Trip Planning</h3>
+        <p>Plan routes, assign vehicles & drivers, track POD, monitor delays in real time.</p>
+      </div>
+      <div class="mod-card mod-green">
+        <div class="icon">👤</div>
+        <h3>Driver Management</h3>
+        <p>KPI scorecards — safety, fuel efficiency, on-time rate, customer ratings.</p>
+      </div>
+      <div class="mod-card mod-red">
+        <div class="icon">⛽</div>
+        <h3>Fuel Monitoring</h3>
+        <p>Per-fill tracking, KMPL trends, fuel card usage, cost per kilometre.</p>
+      </div>
+      <div class="mod-card mod-purple">
+        <div class="icon">🔧</div>
+        <h3>Maintenance</h3>
+        <p>Preventive schedules, breakdown tracking, vendor management, cost history.</p>
+      </div>
+      <div class="mod-card mod-blue">
+        <div class="icon">📋</div>
+        <h3>Compliance</h3>
+        <p>Document matrix for every vehicle — RC, insurance, fitness, permits. Auto-expiry alerts.</p>
+      </div>
+      <div class="mod-card mod-indigo">
+        <div class="icon">💰</div>
+        <h3>Costing & P&amp;L</h3>
+        <p>Per-trip revenue, cost breakdown, margin %, cost per km — exportable.</p>
+      </div>
+      <div class="mod-card mod-teal">
+        <div class="icon">📈</div>
+        <h3>Analytics</h3>
+        <p>Trend charts, utilisation reports, top driver rankings, scheduled PDF/Excel exports.</p>
+      </div>
+      <div class="mod-card mod-red">
+        <div class="icon">🔔</div>
+        <h3>Smart Alerts</h3>
+        <p>Speed violations, breakdowns, expiry warnings — Push, SMS, Email, WhatsApp.</p>
+      </div>
+      <div class="mod-card mod-green">
+        <div class="icon">🔒</div>
+        <h3>User Management</h3>
+        <p>Role-based access control across 5 personas — Super Admin to Viewer.</p>
+      </div>
+      <div class="mod-card mod-amber">
+        <div class="icon">📤</div>
+        <h3>Reports &amp; Exports</h3>
+        <p>One-click PDF / CSV export. Scheduled email delivery — daily, weekly, monthly.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 5: DASHBOARD ────────────── -->
+  <div class="slide" id="s5">
+    <div style="text-align:left; width:100%; max-width:1020px; margin-bottom:20px;">
+      <div class="slide-title">Command Centre Dashboard</div>
+      <div class="slide-sub">Every critical metric, always current, always visible</div>
+    </div>
+    <div class="dash-layout">
+      <div class="dash-left">
+        <div class="kpi-grid">
+          <div class="kpi"><div class="val">8</div><div class="lbl">Total Vehicles</div><div class="chg">↑ Fleet size</div></div>
+          <div class="kpi"><div class="val">5</div><div class="lbl">Active Vehicles</div><div class="chg">↑ On road now</div></div>
+          <div class="kpi"><div class="val">3</div><div class="lbl">In Transit</div><div class="chg">Live tracking</div></div>
+          <div class="kpi"><div class="val" style="font-size:20px">₹14.6L</div><div class="lbl">Total Revenue</div><div class="chg">↑ This month</div></div>
+          <div class="kpi"><div class="val">8</div><div class="lbl">Total Drivers</div><div class="chg">Active roster</div></div>
+          <div class="kpi"><div class="val" style="color:#f87171">4</div><div class="lbl">Unread Alerts</div><div class="chg">↓ Critical: 1</div></div>
+        </div>
+        <div class="chart-mock">
+          <h4>Fleet Utilisation by Vehicle</h4>
+          <div class="bar-row"><div class="bar-label">V001</div><div class="bar-track"><div class="bar-fill" style="width:87%;background:#4ade80"></div></div><div class="bar-pct">87%</div></div>
+          <div class="bar-row"><div class="bar-label">V002</div><div class="bar-track"><div class="bar-fill" style="width:72%;background:#fbbf24"></div></div><div class="bar-pct">72%</div></div>
+          <div class="bar-row"><div class="bar-label">V003</div><div class="bar-track"><div class="bar-fill" style="width:91%;background:#4ade80"></div></div><div class="bar-pct">91%</div></div>
+          <div class="bar-row"><div class="bar-label">V004</div><div class="bar-track"><div class="bar-fill" style="width:45%;background:#f87171"></div></div><div class="bar-pct">45%</div></div>
+          <div class="bar-row"><div class="bar-label">V005</div><div class="bar-track"><div class="bar-fill" style="width:68%;background:#fbbf24"></div></div><div class="bar-pct">68%</div></div>
+        </div>
+      </div>
+      <div class="dash-right">
+        <div class="chart-mock" style="margin-bottom:12px;">
+          <h4>Fleet Status</h4>
+          <div class="status-list">
+            <div class="status-item"><div class="status-dot" style="background:#4ade80"></div><div class="lbl">Running</div><div class="cnt">5</div></div>
+            <div class="status-item"><div class="status-dot" style="background:#fbbf24"></div><div class="lbl">Idle</div><div class="cnt">1</div></div>
+            <div class="status-item"><div class="status-dot" style="background:#60a5fa"></div><div class="lbl">Maintenance</div><div class="cnt">1</div></div>
+            <div class="status-item"><div class="status-dot" style="background:#f87171"></div><div class="lbl">Breakdown</div><div class="cnt">1</div></div>
+          </div>
+        </div>
+        <div class="chart-mock">
+          <h4>Monthly Revenue vs Cost</h4>
+          <div class="rev-bars">
+            <div class="rev-bar" style="height:55%;background:#3b82f6"></div>
+            <div class="rev-bar" style="height:65%;background:#3b82f6"></div>
+            <div class="rev-bar" style="height:80%;background:#3b82f6"></div>
+            <div class="rev-bar" style="height:70%;background:#3b82f6"></div>
+            <div class="rev-bar" style="height:90%;background:#3b82f6"></div>
+            <div class="rev-bar" style="height:100%;background:#3b82f6"></div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:8px;">
+            <div style="font-size:10px;color:rgba(255,255,255,.4);">■ <span style="color:#3b82f6">Revenue</span></div>
+            <div style="font-size:10px;color:rgba(255,255,255,.4);">■ <span style="color:#f87171">Cost</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 6: FLEET ────────────────── -->
+  <div class="slide" id="s6">
+    <div class="feature-layout">
+      <div class="feature-left">
+        <h2>Fleet<br><span>Management</span></h2>
+        <p>Complete vehicle register with live GPS co-ordinates, speed, odometer readings, and document expiry tracking — all in one screen.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>Live GPS location, speed, and odometer per vehicle</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Filter by status: Running / Idle / Maintenance / Breakdown</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Utilisation % with visual progress bar per vehicle</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Insurance & permit expiry with days-remaining countdown</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Add new vehicle with full spec & document dates</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Own / Leased / Contract ownership classification</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Multi-fuel: Diesel, CNG, Electric, LNG, Petrol</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="vehicle-table">
+          <div class="vt-head"><span>Vehicle</span><span>Status</span><span>Speed</span><span>Util%</span></div>
+          <div class="vt-row">
+            <div><div class="reg">MH 12 AB 1234</div><div class="make">Ashok Leyland 2022</div></div>
+            <div><span class="badge badge-green">Running</span></div>
+            <div style="color:white;font-size:13px">62 km/h</div>
+            <div><div>87%</div><div class="util-bar"><div class="util-fill" style="width:87%;background:#4ade80"></div></div></div>
+          </div>
+          <div class="vt-row">
+            <div><div class="reg">KA 05 CD 5678</div><div class="make">Volvo FH 2021</div></div>
+            <div><span class="badge badge-yellow">Idle</span></div>
+            <div style="color:rgba(255,255,255,.5);font-size:13px">0 km/h</div>
+            <div><div>72%</div><div class="util-bar"><div class="util-fill" style="width:72%;background:#fbbf24"></div></div></div>
+          </div>
+          <div class="vt-row">
+            <div><div class="reg">DL 01 EF 9012</div><div class="make">Tata Prima 2023</div></div>
+            <div><span class="badge badge-blue">Maint.</span></div>
+            <div style="color:rgba(255,255,255,.5);font-size:13px">0 km/h</div>
+            <div><div>45%</div><div class="util-bar"><div class="util-fill" style="width:45%;background:#f87171"></div></div></div>
+          </div>
+          <div class="vt-row">
+            <div><div class="reg">TN 09 GH 3456</div><div class="make">Eicher Pro 2022</div></div>
+            <div><span class="badge badge-green">Running</span></div>
+            <div style="color:white;font-size:13px">78 km/h</div>
+            <div><div>91%</div><div class="util-bar"><div class="util-fill" style="width:91%;background:#4ade80"></div></div></div>
+          </div>
+          <div class="vt-row">
+            <div><div class="reg">GJ 18 IJ 7890</div><div class="make">BharatBenz 2020</div></div>
+            <div><span class="badge badge-red">Breakdown</span></div>
+            <div style="color:rgba(255,255,255,.5);font-size:13px">0 km/h</div>
+            <div><div>30%</div><div class="util-bar"><div class="util-fill" style="width:30%;background:#f87171"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 7: TRIPS ────────────────── -->
+  <div class="slide" id="s7">
+    <div class="trips-layout">
+      <div class="trips-left">
+        <h2>Trip Planning &<br><span>Execution Tracking</span></h2>
+        <p>From first dispatch to proof of delivery — every trip milestone tracked, every delay flagged, every rupee recorded.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>Plan trips: origin, destination, waypoints, distance</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Assign vehicle + driver with one click</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Live status: Planned → In Transit → Completed</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Delay detection with hours-late counter</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Freight revenue linked to every trip</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Proof of Delivery (POD) status tracking</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Cargo type, weight, customer name on record</p></div>
+        </div>
+      </div>
+      <div class="trip-cards">
+        <div class="trip-card">
+          <div class="trip-header">
+            <div class="trip-id">T001</div>
+            <span class="badge badge-blue">In Transit</span>
+          </div>
+          <div class="trip-route">📍 Mumbai → Delhi (via Nagpur, Bhopal)</div>
+          <div class="trip-meta">
+            <span>Customer: <strong>Reliance Ind.</strong></span>
+            <span>Revenue: <strong>₹45,000</strong></span>
+            <span>POD: <strong style="color:#fbbf24">Pending</strong></span>
+          </div>
+        </div>
+        <div class="trip-card">
+          <div class="trip-header">
+            <div class="trip-id">T003</div>
+            <span class="badge badge-green">Completed</span>
+          </div>
+          <div class="trip-route">📍 Chennai → Bangalore (via Vellore)</div>
+          <div class="trip-meta">
+            <span>Customer: <strong>TVS Motors</strong></span>
+            <span>Revenue: <strong>₹28,500</strong></span>
+            <span>POD: <strong style="color:#4ade80">Done</strong></span>
+          </div>
+        </div>
+        <div class="trip-card">
+          <div class="trip-header">
+            <div class="trip-id">T005</div>
+            <span class="badge badge-red">Delayed</span>
+          </div>
+          <div class="trip-route">📍 Kolkata → Hyderabad (direct)</div>
+          <div class="trip-meta">
+            <span>Customer: <strong>ITC Ltd</strong></span>
+            <span>Delay: <strong style="color:#f87171">4.5 hrs</strong></span>
+            <span>POD: <strong style="color:#fbbf24">Pending</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 8: DRIVERS ──────────────── -->
+  <div class="slide" id="s8">
+    <div class="driver-layout">
+      <div class="driver-left">
+        <h2>Driver Performance<br><span>Scorecards</span></h2>
+        <p>Move from gut-feel to data-driven driver management. Every driver gets a complete KPI profile — updated with every trip.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>Fuel efficiency score (0–100) per driver</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Safety score with color-coded performance bands</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>On-time delivery %, customer star ratings</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Violations count, attendance percentage</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>License expiry tracking with advance warnings</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Total trips, total KM, advance & salary on record</p></div>
+        </div>
+      </div>
+      <div class="perf-board">
+        <div class="pb-header">
+          <h4>Driver Performance Board</h4>
+          <p>Safety Score ranking — current fleet</p>
+        </div>
+        <div class="pb-row">
+          <div class="pb-top"><div class="pb-name">Rajesh Kumar</div><div class="pb-score" style="color:#4ade80">94</div></div>
+          <div class="pb-bar-track"><div class="pb-bar-fill" style="width:94%;background:#4ade80"></div></div>
+        </div>
+        <div class="pb-row">
+          <div class="pb-top"><div class="pb-name">Suresh Patel</div><div class="pb-score" style="color:#4ade80">89</div></div>
+          <div class="pb-bar-track"><div class="pb-bar-fill" style="width:89%;background:#4ade80"></div></div>
+        </div>
+        <div class="pb-row">
+          <div class="pb-top"><div class="pb-name">Vikram Singh</div><div class="pb-score" style="color:#fbbf24">76</div></div>
+          <div class="pb-bar-track"><div class="pb-bar-fill" style="width:76%;background:#fbbf24"></div></div>
+        </div>
+        <div class="pb-row">
+          <div class="pb-top"><div class="pb-name">Arun Sharma</div><div class="pb-score" style="color:#fbbf24">71</div></div>
+          <div class="pb-bar-track"><div class="pb-bar-fill" style="width:71%;background:#fbbf24"></div></div>
+        </div>
+        <div class="pb-row">
+          <div class="pb-top"><div class="pb-name">Manoj Yadav</div><div class="pb-score" style="color:#f87171">58</div></div>
+          <div class="pb-bar-track"><div class="pb-bar-fill" style="width:58%;background:#f87171"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 9: COMPLIANCE ───────────── -->
+  <div class="slide" id="s9">
+    <div class="comp-layout">
+      <div class="comp-left" style="flex:1">
+        <h2>Compliance<br><span>Never Miss a Renewal</span></h2>
+        <p>A full compliance matrix tracks 6 documents per vehicle with automatic expiry alerts — keeping your fleet legal and on the road.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>RC, Insurance, Fitness, Pollution, State & National Permit</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Traffic-light status: Valid / Expiring Soon / Expired</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Alert banner showing exactly how many docs need action</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Driver license expiry tracked with days remaining</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Export compliance report as CSV in one click</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Push / SMS / Email / WhatsApp renewal reminders</p></div>
+        </div>
+      </div>
+      <div>
+        <div class="comp-matrix">
+          <div class="cm-head"><span>Vehicle</span><span>RC</span><span>Insur.</span><span>Fitness</span><span>Pollut.</span><span>St.Perm</span><span>Nat.Perm</span></div>
+          <div class="cm-row"><div class="cm-vid">V001</div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-orange">Soon</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div></div>
+          <div class="cm-row"><div class="cm-vid">V002</div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-orange">Soon</div></div><div class="cm-cell"><div class="cm-badge cm-red">Expd</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div></div>
+          <div class="cm-row"><div class="cm-vid">V003</div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-orange">Soon</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div></div>
+          <div class="cm-row"><div class="cm-vid">V004</div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-red">Expd</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div></div>
+          <div class="cm-row"><div class="cm-vid">V005</div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-orange">Soon</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-green">Valid</div></div><div class="cm-cell"><div class="cm-badge cm-orange">Soon</div></div></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:12px;justify-content:flex-end;">
+          <div style="font-size:11px;color:rgba(255,255,255,.4)">■ <span style="color:#4ade80">Valid</span></div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4)">■ <span style="color:#fbbf24">Expiring Soon</span></div>
+          <div style="font-size:11px;color:rgba(255,255,255,.4)">■ <span style="color:#f87171">Expired</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 10: COSTING ─────────────── -->
+  <div class="slide" id="s10">
+    <div class="cost-layout">
+      <div class="cost-left">
+        <h2>Trip-wise P&L &<br><span>Cost Intelligence</span></h2>
+        <p>Know exactly how much every trip earns and costs — fuel, toll, driver, maintenance, tyres. Spot margin leakage before it becomes a loss.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>6-category cost breakdown per trip</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Profit, margin %, cost-per-km per trip</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Fleet-wide totals: Revenue, Cost, Profit, Avg Margin</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Visual grouped bar chart: Revenue vs Cost vs Profit</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Cost pie chart by category with % share</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Export P&L statement as PDF or Excel</p></div>
+        </div>
+        <div class="cost-kpis">
+          <div class="cost-kpi"><div class="num" style="color:#67e8f9">₹14.6L</div><div class="lbl">Total Revenue</div></div>
+          <div class="cost-kpi"><div class="num" style="color:#f87171">₹9.8L</div><div class="lbl">Total Cost</div></div>
+          <div class="cost-kpi"><div class="num" style="color:#4ade80">₹4.8L</div><div class="lbl">Total Profit</div></div>
+          <div class="cost-kpi"><div class="num" style="color:#a78bfa">32.8%</div><div class="lbl">Avg Margin</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="cost-table">
+          <div class="ct-head"><span>Trip</span><span>Revenue</span><span>Cost</span><span>Profit</span><span>Margin</span></div>
+          <div class="ct-row"><div class="id">T001</div><div class="rev">₹45,000</div><div class="cost">₹29,500</div><div class="profit">₹15,500</div><div><span class="badge badge-green">34.4%</span></div></div>
+          <div class="ct-row"><div class="id">T002</div><div class="rev">₹38,000</div><div class="cost">₹27,200</div><div class="profit">₹10,800</div><div><span class="badge badge-yellow">28.4%</span></div></div>
+          <div class="ct-row"><div class="id">T003</div><div class="rev">₹28,500</div><div class="cost">₹18,900</div><div class="profit">₹9,600</div><div><span class="badge badge-green">33.7%</span></div></div>
+          <div class="ct-row"><div class="id">T004</div><div class="rev">₹52,000</div><div class="cost">₹38,100</div><div class="profit">₹13,900</div><div><span class="badge badge-yellow">26.7%</span></div></div>
+          <div class="ct-row"><div class="id">T005</div><div class="rev">₹19,200</div><div class="cost">₹16,400</div><div class="profit">₹2,800</div><div><span class="badge badge-red">14.6%</span></div></div>
+        </div>
+        <div style="margin-top:16px;">
+          <div class="chart-mock">
+            <h4>Cost Breakdown</h4>
+            <div class="pie-legend">
+              <div class="pie-item"><div class="pie-dot" style="background:#fbbf24"></div><div class="pie-lbl">Fuel</div><div class="pie-pct">42%</div></div>
+              <div class="pie-item"><div class="pie-dot" style="background:#818cf8"></div><div class="pie-lbl">Driver</div><div class="pie-pct">21%</div></div>
+              <div class="pie-item"><div class="pie-dot" style="background:#f87171"></div><div class="pie-lbl">Toll</div><div class="pie-pct">15%</div></div>
+              <div class="pie-item"><div class="pie-dot" style="background:#60a5fa"></div><div class="pie-lbl">Maintenance</div><div class="pie-pct">12%</div></div>
+              <div class="pie-item"><div class="pie-dot" style="background:#34d399"></div><div class="pie-lbl">Tyre</div><div class="pie-pct">7%</div></div>
+              <div class="pie-item"><div class="pie-dot" style="background:#94a3b8"></div><div class="pie-lbl">Misc</div><div class="pie-pct">3%</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 11: ANALYTICS ───────────── -->
+  <div class="slide" id="s11">
+    <div class="analytics-layout">
+      <div class="analytics-left">
+        <h2>Analytics &<br><span>Smart Reporting</span></h2>
+        <p>Six integrated chart views and scheduled reports give management a complete business intelligence layer — no BI tool required.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>6-month Revenue vs Cost trend (area chart)</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Fuel efficiency KMPL trend line by month</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Profit & margin percentage bar chart</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Vehicle utilisation horizontal bars (per vehicle)</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Top 5 driver safety scorecard (ranked leaderboard)</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Export PDF / Excel — or schedule daily/weekly/monthly email</p></div>
+        </div>
+      </div>
+      <div class="analytics-charts">
+        <div class="mini-chart">
+          <h4>Revenue vs Cost — Last 6 Months</h4>
+          <div style="display:flex;align-items:flex-end;gap:6px;height:60px;">
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+              <div style="width:100%;background:#3b82f6;border-radius:2px 2px 0 0;height:48px"></div>
+              <div style="width:100%;background:#f87171;border-radius:0 0 2px 2px;height:30px"></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+              <div style="width:100%;background:#3b82f6;border-radius:2px 2px 0 0;height:55px"></div>
+              <div style="width:100%;background:#f87171;border-radius:0 0 2px 2px;height:35px"></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+              <div style="width:100%;background:#3b82f6;border-radius:2px 2px 0 0;height:50px"></div>
+              <div style="width:100%;background:#f87171;border-radius:0 0 2px 2px;height:32px"></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+              <div style="width:100%;background:#3b82f6;border-radius:2px 2px 0 0;height:60px"></div>
+              <div style="width:100%;background:#f87171;border-radius:0 0 2px 2px;height:38px"></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+              <div style="width:100%;background:#3b82f6;border-radius:2px 2px 0 0;height:65px"></div>
+              <div style="width:100%;background:#f87171;border-radius:0 0 2px 2px;height:40px"></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:2px;align-items:center;">
+              <div style="width:100%;background:#22d3ee;border-radius:2px 2px 0 0;height:72px"></div>
+              <div style="width:100%;background:#f87171;border-radius:0 0 2px 2px;height:44px"></div>
+            </div>
+          </div>
+        </div>
+        <div class="mini-chart">
+          <h4>Top Drivers by Safety Score</h4>
+          <div class="driver-rank">
+            <div class="dr-row"><div class="dr-medal">🥇</div><div class="dr-name">Rajesh Kumar</div><div class="dr-bar-track"><div class="dr-bar-fill" style="width:94%;background:#a78bfa"></div></div><div class="dr-score">94</div></div>
+            <div class="dr-row"><div class="dr-medal">🥈</div><div class="dr-name">Suresh Patel</div><div class="dr-bar-track"><div class="dr-bar-fill" style="width:89%;background:#a78bfa"></div></div><div class="dr-score">89</div></div>
+            <div class="dr-row"><div class="dr-medal">🥉</div><div class="dr-name">Vikram Singh</div><div class="dr-bar-track"><div class="dr-bar-fill" style="width:76%;background:#a78bfa"></div></div><div class="dr-score">76</div></div>
+            <div class="dr-row"><div class="dr-medal">4</div><div class="dr-name">Arun Sharma</div><div class="dr-bar-track"><div class="dr-bar-fill" style="width:71%;background:#a78bfa"></div></div><div class="dr-score">71</div></div>
+            <div class="dr-row"><div class="dr-medal">5</div><div class="dr-name">Manoj Yadav</div><div class="dr-bar-track"><div class="dr-bar-fill" style="width:58%;background:#f87171"></div></div><div class="dr-score">58</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 12: ALERTS ──────────────── -->
+  <div class="slide" id="s12">
+    <div class="alerts-layout">
+      <div class="alerts-left">
+        <h2>Smart Alert<br><span>Centre</span></h2>
+        <p>Proactive alerts across 8 categories, 4 severity levels, and 4 delivery channels ensure nothing critical is ever missed.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>Speed violation, geofence exit, long idle detection</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Fitness expiry, insurance expiry, maintenance due</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Breakdown & trip delay alerts</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>4 severity levels: Critical / High / Medium / Low</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Resolve or dismiss with one click</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Channels: Push · SMS · Email · WhatsApp Business</p></div>
+        </div>
+      </div>
+      <div class="alert-list">
+        <div class="alert-card critical">
+          <div class="alert-top"><div class="alert-type">🚨 Breakdown Alert</div><span class="badge badge-red">Critical</span></div>
+          <div class="alert-msg">Vehicle V008 has broken down on NH-48 near Pune. Immediate assistance required.</div>
+          <div class="alert-meta"><span>V008 · 2 min ago</span></div>
+        </div>
+        <div class="alert-card high">
+          <div class="alert-top"><div class="alert-type">📋 Fitness Expired</div><span class="badge badge-yellow">High</span></div>
+          <div class="alert-msg">Fitness certificate for V002 expired 3 days ago. Vehicle should not be on road.</div>
+          <div class="alert-meta"><span>V002 · 3 days ago</span></div>
+        </div>
+        <div class="alert-card medium">
+          <div class="alert-top"><div class="alert-type">⚡ Speed Violation</div><span class="badge" style="background:rgba(234,179,8,.2);color:#fbbf24">Medium</span></div>
+          <div class="alert-msg">V004 exceeded speed limit (112 km/h) on NH-44. Driver: Manoj Yadav.</div>
+          <div class="alert-meta"><span>V004 · 25 min ago</span></div>
+        </div>
+        <div class="alert-card low">
+          <div class="alert-top"><div class="alert-type">⏱️ Trip Delayed</div><span class="badge badge-blue">Low</span></div>
+          <div class="alert-msg">Trip T005 is running 4.5 hours behind schedule. ETA revised to 22:30.</div>
+          <div class="alert-meta"><span>T005 · 1 hr ago</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 13: RBAC ────────────────── -->
+  <div class="slide" id="s13">
+    <div class="rbac-layout">
+      <div class="rbac-left">
+        <h2>Role-Based<br><span>Access Control</span></h2>
+        <p>5 purpose-built user personas ensure every person sees exactly what they need — and nothing they shouldn't. From the Super Admin to a read-only Viewer.</p>
+        <div class="feat-list">
+          <div class="feat-item"><div class="feat-check">✓</div><p>JWT-secured sessions with 8-hour expiry</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Fine-grained module permissions per role</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Full user management — add, activate, deactivate</p></div>
+          <div class="feat-item"><div class="feat-check">✓</div><p>Last login tracking for every account</p></div>
+        </div>
+      </div>
+      <div class="role-cards">
+        <div class="role-card">
+          <div class="role-icon">👑</div>
+          <div class="role-info">
+            <h4>Super Admin</h4>
+            <p>Full access to all modules and settings</p>
+            <div class="role-perms"><span class="perm-chip">All Modules</span><span class="perm-chip">User Mgmt</span><span class="perm-chip">Costing</span></div>
+          </div>
+        </div>
+        <div class="role-card">
+          <div class="role-icon">🚛</div>
+          <div class="role-info">
+            <h4>Fleet Manager</h4>
+            <p>Fleet, drivers, trips, maintenance, compliance</p>
+            <div class="role-perms"><span class="perm-chip">Fleet</span><span class="perm-chip">Drivers</span><span class="perm-chip">Trips</span><span class="perm-chip">Alerts</span></div>
+          </div>
+        </div>
+        <div class="role-card">
+          <div class="role-icon">📡</div>
+          <div class="role-info">
+            <h4>Dispatcher</h4>
+            <p>Trip planning, vehicle & driver assignment</p>
+            <div class="role-perms"><span class="perm-chip">Trips</span><span class="perm-chip">Fleet View</span><span class="perm-chip">Dashboard</span></div>
+          </div>
+        </div>
+        <div class="role-card">
+          <div class="role-icon">💼</div>
+          <div class="role-info">
+            <h4>Accountant</h4>
+            <p>Costing, P&L, fuel, billing and reports</p>
+            <div class="role-perms"><span class="perm-chip">Costing</span><span class="perm-chip">Fuel</span><span class="perm-chip">Reports</span></div>
+          </div>
+        </div>
+        <div class="role-card">
+          <div class="role-icon">👁️</div>
+          <div class="role-info">
+            <h4>Viewer</h4>
+            <p>Read-only access to dashboard and reports</p>
+            <div class="role-perms"><span class="perm-chip">Dashboard</span><span class="perm-chip">Reports View</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 14: TECH STACK ──────────── -->
+  <div class="slide" id="s14">
+    <div class="tech-title">Built for Scale</div>
+    <div class="tech-sub">Modern, production-ready technology — cloud-deployable from day one</div>
+    <div class="tech-grid">
+      <div class="tech-card"><div class="t-icon">⚡</div><h3>Next.js</h3><p>App Router, SSR-ready frontend — fast, SEO-friendly</p></div>
+      <div class="tech-card"><div class="t-icon">🟢</div><h3>Node.js + Express</h3><p>REST API with JWT auth, sub-100ms responses</p></div>
+      <div class="tech-card"><div class="t-icon">🔷</div><h3>TypeScript</h3><p>Type-safe throughout — fewer bugs, faster onboarding</p></div>
+      <div class="tech-card"><div class="t-icon">🎨</div><h3>Tailwind CSS</h3><p>Consistent design system, mobile-responsive</p></div>
+      <div class="tech-card"><div class="t-icon">📊</div><h3>Recharts</h3><p>Interactive charts — bar, line, area, pie, scatter</p></div>
+      <div class="tech-card"><div class="t-icon">🔐</div><h3>JWT Auth</h3><p>Secure tokens, 5-role RBAC, session management</p></div>
+      <div class="tech-card"><div class="t-icon">🗄️</div><h3>DB-Ready</h3><p>In-memory now; swap to Postgres/MySQL in one step</p></div>
+      <div class="tech-card"><div class="t-icon">☁️</div><h3>Cloud Native</h3><p>Deploy on AWS / Azure / GCP or on-premise</p></div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 15: VALUE PROP ──────────── -->
+  <div class="slide" id="s15">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div class="slide-title">Why Teams Choose TMS</div>
+      <div class="slide-sub">Measurable impact from week one</div>
+    </div>
+    <div class="value-grid">
+      <div class="value-card">
+        <div class="v-icon">⛽</div>
+        <h3>Cut Fuel Costs</h3>
+        <div class="stat">~12%</div>
+        <p>KMPL tracking per driver and vehicle surfaces fuel theft and inefficient routes before they become losses.</p>
+      </div>
+      <div class="value-card">
+        <div class="v-icon">📋</div>
+        <h3>Zero Compliance Fines</h3>
+        <div class="stat">100%</div>
+        <p>Automated expiry alerts via SMS, email, and WhatsApp ensure your fleet stays legal around the clock.</p>
+      </div>
+      <div class="value-card">
+        <div class="v-icon">💰</div>
+        <h3>Margin Visibility</h3>
+        <div class="stat">Real-time</div>
+        <p>Per-trip P&L means you know instantly which routes are profitable and which are dragging down margins.</p>
+      </div>
+      <div class="value-card">
+        <div class="v-icon">🚛</div>
+        <h3>Boost Utilisation</h3>
+        <div class="stat">+15%</div>
+        <p>Utilisation scores per vehicle expose idle assets and guide smarter dispatching decisions.</p>
+      </div>
+      <div class="value-card">
+        <div class="v-icon">👤</div>
+        <h3>Accountable Drivers</h3>
+        <div class="stat">5-KPI</div>
+        <p>Safety, fuel, on-time, ratings, violations — data-backed performance conversations replace guesswork.</p>
+      </div>
+      <div class="value-card">
+        <div class="v-icon">⏱️</div>
+        <h3>Faster Decisions</h3>
+        <div class="stat">Live</div>
+        <p>No more end-of-month reports. Every metric is real-time. Act in minutes, not weeks.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ────────────── SLIDE 16: CTA ──────────────────── -->
+  <div class="slide" id="s16">
+    <div style="font-size:13px; color:#67e8f9; letter-spacing:2px; text-transform:uppercase; margin-bottom:16px;">Ready to Transform Your Fleet?</div>
+    <h2>Start Your<br><span>Free Demo Today</span></h2>
+    <p>See TMS live with your own fleet data in under 30 minutes.<br/>No credit card. No commitment.</p>
+    <div class="cta-buttons">
+      <button class="cta-btn cta-primary">🚀  Request a Demo</button>
+      <button class="cta-btn cta-secondary">📄  Download Brochure</button>
+    </div>
+    <div class="contact-row">
+      <div class="contact-item"><strong>Email</strong>gauravkhohal@gmail.com</div>
+      <div class="contact-item"><strong>Platform</strong>localhost:3000</div>
+      <div class="contact-item"><strong>Login</strong>admin@tms.in · tms@1234</div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- Navigation -->
+<div id="dots"></div>
+<div id="nav">
+  <button id="btn-prev">&#8592;</button>
+  <button id="btn-next">&#8594;</button>
+</div>
+<div id="progress"></div>
+<div id="hint">← → or click arrows to navigate</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total  = slides.length;
+  let cur = 0;
+
+  const dotsEl    = document.getElementById('dots');
+  const progressEl= document.getElementById('progress');
+  const btnPrev   = document.getElementById('btn-prev');
+  const btnNext   = document.getElementById('btn-next');
+
+  // Build dots
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    d.addEventListener('click', () => go(i));
+    dotsEl.appendChild(d);
+  });
+
+  function go(n) {
+    slides[cur].classList.remove('active');
+    cur = Math.max(0, Math.min(total - 1, n));
+    slides[cur].classList.add('active');
+    update();
+  }
+
+  function update() {
+    const allDots = dotsEl.querySelectorAll('.dot');
+    allDots.forEach((d, i) => d.classList.toggle('on', i === cur));
+    progressEl.textContent = (cur + 1) + ' / ' + total;
+    btnPrev.disabled = cur === 0;
+    btnNext.disabled = cur === total - 1;
+  }
+
+  btnPrev.addEventListener('click', () => go(cur - 1));
+  btnNext.addEventListener('click', () => go(cur + 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') go(cur + 1);
+    if (e.key === 'ArrowLeft')                   go(cur - 1);
+    if (e.key === 'Home')                         go(0);
+    if (e.key === 'End')                          go(total - 1);
+  });
+
+  // Touch / swipe
+  let tx = 0;
+  document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+  document.addEventListener('touchend',   e => {
+    const dx = e.changedTouches[0].clientX - tx;
+    if (Math.abs(dx) > 50) go(dx < 0 ? cur + 1 : cur - 1);
+  });
+
+  go(0);
+</script>
+</body>
+</html>

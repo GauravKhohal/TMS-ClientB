@@ -1,0 +1,136 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String    @id
+  name        String
+  email       String    @unique
+  password    String
+  role        String
+  status      String
+  lastLogin   DateTime?
+  permissions Json
+}
+
+model Vehicle {
+  id              String  @id
+  regNumber       String
+  make            String
+  model           String
+  year            Int
+  category        String
+  ownershipType   String
+  capacity        String
+  fuelType        String
+  status          String
+  driverId        String?
+  odometer        Int
+  location        Json
+  speed           Int
+  lastService     String
+  insurance       String
+  fitness         String
+  permit          String
+  utilization     Int
+  purchasedAgency String
+  vehicleValue    Int
+  emiEnabled      String
+  monthlyEMI      Int
+  loanBank        String
+}
+
+model Driver {
+  id                String  @id
+  name              String
+  phone             String
+  altPhone          String
+  dob               String
+  address           String
+  dlNumber          String
+  licenseCategory   String
+  licenseExpiry     String
+  experience        Int
+  emergencyContact  String
+  status            String
+  assignedVehicle   String?
+  fuelScore         Int
+  safetyScore       Int
+  onTimeDelivery    Int
+  customerRating    Float
+  totalTrips        Int
+  totalKm           Int
+  violations        Int
+  salary            Int
+  advance           Int
+  attendance        Int
+  aadhaarNumber     String
+  panNumber         String
+  supervisorName    String
+  supervisorHistory Json
+}
+
+model Trip {
+  id               String   @id
+  voucherNo        String
+  origin           String
+  destination      String
+  stops            Json
+  viaStops         Json
+  status           String
+  approvalStatus   String
+  rejectionReason  String
+  driverId         String?
+  vehicleId        String?
+  customer         String
+  contactPerson    String
+  contactNo        String
+  address          String
+  category         String
+  segment          String
+  businessGroup    String
+  employeeId       String
+  placementDate    String
+  noOfVehicles     Int
+  vehicleLoadType  String
+  cargo            String
+  content          String
+  rateType         String
+  weight           Float
+  packages         Int
+  rate             Int
+  freight          Int
+  loadingCharges   Int
+  unloadingCharges Int
+  otherCharges     Int
+  commission       Int
+  advance          Int
+  paymentTerms     String
+  creditDays       Int
+  total            Int
+  balance          Int
+  volume           Int
+  plannedDate      String
+  actualDeparture  String?
+  eta              String
+  distance         Int
+  approxTimeHrs    Int
+  plannedKm        Int
+  actualKm         Int
+  tollCost         Int
+  fuelCost         Int
+  revenue          Int
+  pod              Boolean
+  delay            Int
+  notes            String?
+  createdAt        DateTime @default(now())
+}
