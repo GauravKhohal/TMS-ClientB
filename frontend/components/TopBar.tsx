@@ -22,7 +22,7 @@ interface TopBarProps {
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
   const pathname = usePathname();
-  const title = titles[pathname] || 'TransportMS';
+  const title = titles[pathname] || 'Nexantra Technologies';
 
   return (
     <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 fixed top-0 right-0 left-0 md:left-64 z-30">

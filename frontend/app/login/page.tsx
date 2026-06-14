@@ -44,7 +44,7 @@ export default function LoginPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10l2 2h9l2-2zM13 6l3.5 5H17a1 1 0 00-1 1v4" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white">TransportMS</h1>
+          <h1 className="text-2xl font-bold text-white">Nexantra Technologies</h1>
           <p className="text-slate-400 text-sm mt-1">Enterprise Fleet Management Platform</p>
         </div>
 

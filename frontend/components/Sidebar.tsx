@@ -60,7 +60,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               </svg>
             </div>
             <div>
-              <div className="text-white font-bold text-sm">TransportMS</div>
+              <div className="text-white font-bold text-sm">Nexantra Technologies</div>
               <div className="text-slate-500 text-xs">Fleet Management</div>
             </div>
           </div>
