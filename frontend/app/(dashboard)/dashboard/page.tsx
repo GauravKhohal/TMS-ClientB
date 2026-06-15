@@ -24,6 +24,7 @@ interface DashboardData {
   unreadAlerts: number;
   fleetStatus: { running: number; idle: number; maintenance: number; breakdown: number };
   monthlyRevenue: { month: string; revenue: number; cost: number; trips: number }[];
+  indentStats: { total: number; pending: number; approved: number; rejected: number };
 }
 
 function StatCard({ title, value, sub, icon, color }: { title: string; value: string | number; sub?: string; icon: string; color: string }) {
@@ -125,6 +126,41 @@ export default function DashboardPage() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Indent status summary */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <h3 className="text-sm font-semibold text-slate-800 mb-4">Indent Status</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-slate-400 flex-shrink-0" />
+            <div>
+              <div className="text-xl font-bold text-slate-800">{data.indentStats.total}</div>
+              <div className="text-xs text-slate-500">Total Indents</div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-yellow-100 bg-yellow-50 p-3 flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500 flex-shrink-0" />
+            <div>
+              <div className="text-xl font-bold text-slate-800">{data.indentStats.pending}</div>
+              <div className="text-xs text-slate-500">Pending Approval</div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-green-100 bg-green-50 p-3 flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500 flex-shrink-0" />
+            <div>
+              <div className="text-xl font-bold text-slate-800">{data.indentStats.approved}</div>
+              <div className="text-xs text-slate-500">Approved</div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-red-100 bg-red-50 p-3 flex items-center gap-3">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
+            <div>
+              <div className="text-xl font-bold text-slate-800">{data.indentStats.rejected}</div>
+              <div className="text-xs text-slate-500">Rejected</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <DateRangeBar preset={preset} setPreset={setPreset} fromYM={fromYM} setFromYM={setFromYM} toYM={toYM} setToYM={setToYM} effectiveFrom={effectiveFrom} effectiveTo={effectiveTo} />

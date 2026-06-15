@@ -76,6 +76,7 @@ export const api = {
   confirmPlacement: (id: string, data: object) => request(`/trips/${id}/placement`, { method: 'PATCH', body: JSON.stringify(data) }),
   generateCN: (id: string, data: object) => request(`/trips/${id}/cn`, { method: 'PATCH', body: JSON.stringify(data) }),
   fuel: () => request('/fuel'),
+  addFuelEntry: (data: object) => request('/fuel', { method: 'POST', body: JSON.stringify(data) }),
   maintenance: () => request('/maintenance'),
   compliance: () => request('/compliance'),
   alerts: () => request('/alerts'),
@@ -115,6 +116,11 @@ export const api = {
     request(`/petty-cash/${id}/reconcile`, { method: 'PATCH', body: JSON.stringify(data) }),
   issuePettyCash: (data: object) =>
     request('/petty-cash', { method: 'POST', body: JSON.stringify(data) }),
+  transferPettyCash: (id: string) => request(`/petty-cash/${id}/transfer`, { method: 'PATCH' }),
+  payoutPool: () => request('/payouts/pool'),
+  loadPayoutPool: (amount: number) => request('/payouts/pool/load', { method: 'POST', body: JSON.stringify({ amount }) }),
+  updateDriverBankDetails: (id: string, data: object) =>
+    request(`/drivers/${id}/bank-details`, { method: 'PATCH', body: JSON.stringify(data) }),
   verifyRC: (vehicleId: string) => request(`/verify/rc/${vehicleId}`, { method: 'POST' }),
   verifyDL: (driverId: string) => request(`/verify/dl/${driverId}`, { method: 'POST' }),
   verifyPAN: (driverId: string) => request(`/verify/pan/${driverId}`, { method: 'POST' }),

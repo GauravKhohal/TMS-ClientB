@@ -132,30 +132,27 @@ function FuelPageInner() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    const liters = parseFloat(form.liters);
-    const price = parseFloat(form.pricePerLiter);
-    const totalCostEntry = Math.round(liters * price);
-    const kmpl = 4.1 + Math.random() * 0.4;
-    const newEntry: FuelEntry = {
-      id: 'F' + Date.now(),
-      vehicleId: form.vehicleId,
-      date: form.date,
-      liters,
-      pricePerLiter: price,
-      totalCost: totalCostEntry,
-      odometer: parseInt(form.odometer) || 0,
-      kmpl: parseFloat(kmpl.toFixed(2)),
-      station: form.station,
-      fuelCardUsed: form.fuelCardUsed,
-      tripId: form.tripId || null,
-    };
-    setEntries(prev => [newEntry, ...prev]);
-    setForm(EMPTY_FORM);
-    setShowAdd(false);
-    setSaving(false);
-    setSuccessMsg(`Fuel entry added — ₹${totalCostEntry.toLocaleString('en-IN')} for ${liters}L`);
-    setTimeout(() => setSuccessMsg(''), 3000);
+    try {
+      const newEntry: FuelEntry = await api.addFuelEntry({
+        vehicleId: form.vehicleId,
+        date: form.date,
+        liters: parseFloat(form.liters),
+        pricePerLiter: parseFloat(form.pricePerLiter),
+        odometer: parseInt(form.odometer) || 0,
+        station: form.station,
+        fuelCardUsed: form.fuelCardUsed,
+        tripId: form.tripId || null,
+      });
+      setEntries(prev => [newEntry, ...prev]);
+      setForm(EMPTY_FORM);
+      setShowAdd(false);
+      setSuccessMsg(`Fuel entry added — ₹${newEntry.totalCost.toLocaleString('en-IN')} for ${newEntry.liters}L`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;

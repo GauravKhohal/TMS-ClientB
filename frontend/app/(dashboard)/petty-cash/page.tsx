@@ -3,6 +3,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
+import { getUser } from '@/lib/auth';
 
 interface Expenses {
   diesel: number; toll: number; food: number; maintenance: number; misc: number;
@@ -12,9 +13,24 @@ interface PettyCashEntry {
   tripRoute: string; issueDate: string; cashIssued: number;
   expenses: Expenses; totalSpent: number; balance: number;
   status: string; settledDate: string | null; notes: string;
+  transferStatus: string; transferAmount: number; transferMode: string;
+  payoutId: string | null; payoutTime: string | null; failureReason: string | null;
 }
 interface Summary {
   totalIssued: number; totalSpent: number; pending: number; netBalance: number;
+  pendingTransfers: number; failedTransfers: number;
+}
+interface PayoutPool {
+  totalLoaded: number; balance: number; lowBalanceThreshold: number; lowBalance: boolean;
+}
+interface BankDetails {
+  bankName: string; accountNumber: string; ifsc: string; upiId: string;
+}
+interface DriverOption {
+  id: string; name: string; bankDetails?: BankDetails;
+}
+interface TripOption {
+  id: string; origin: string; destination: string; driverId: string | null; status: string;
 }
 
 const EMPTY_ISSUE = { tripId: '', driverId: '', cashIssued: 0, issueDate: new Date().toISOString().split('T')[0], notes: '' };
@@ -41,8 +57,27 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${c[status] || 'bg-slate-100 text-slate-600'}`}>{status}</span>;
 }
 
+function PayoutStatusBadge({ status }: { status: string }) {
+  const c: Record<string, string> = {
+    Success: 'bg-green-100 text-green-700',
+    'Pending Approval': 'bg-yellow-100 text-yellow-700',
+    Failed: 'bg-red-100 text-red-700',
+  };
+  const label: Record<string, string> = { Success: '✓ Transferred' };
+  return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${c[status] || 'bg-slate-100 text-slate-600'}`}>{label[status] || status}</span>;
+}
+
 function inr(n: number) {
   return '₹' + Math.abs(n).toLocaleString('en-IN');
+}
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function maskAccount(num: string) {
+  if (!num || num.length < 4) return '—';
+  return `${'•'.repeat(Math.max(num.length - 4, 4))}${num.slice(-4)}`;
 }
 
 export default function PettyCashPage() {
@@ -58,16 +93,20 @@ function PettyCashPageInner() {
   const searchParam = searchParams.get('search');
 
   const [entries, setEntries] = useState<PettyCashEntry[]>([]);
-  const [summary, setSummary] = useState<Summary>({ totalIssued: 0, totalSpent: 0, pending: 0, netBalance: 0 });
+  const [summary, setSummary] = useState<Summary>({ totalIssued: 0, totalSpent: 0, pending: 0, netBalance: 0, pendingTransfers: 0, failedTransfers: 0 });
+  const [pool, setPool] = useState<PayoutPool | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState(searchParam || '');
   const [successMsg, setSuccessMsg] = useState('');
+  const [transferringId, setTransferringId] = useState<string | null>(null);
 
   // Issue cash modal
   const [showIssue, setShowIssue] = useState(false);
   const [issueForm, setIssueForm] = useState(EMPTY_ISSUE);
   const [issueSaving, setIssueSaving] = useState(false);
+  const [driverOptions, setDriverOptions] = useState<DriverOption[]>([]);
+  const [tripOptions, setTripOptions] = useState<TripOption[]>([]);
 
   // Reconcile modal
   const [reconciling, setReconciling] = useState<PettyCashEntry | null>(null);
@@ -78,6 +117,15 @@ function PettyCashPageInner() {
   // Ledger modal
   const [ledgerDriver, setLedgerDriver] = useState<string | null>(null);
 
+  // Load funds modal
+  const [showLoadFunds, setShowLoadFunds] = useState(false);
+  const [loadAmount, setLoadAmount] = useState(0);
+  const [loadSaving, setLoadSaving] = useState(false);
+
+  const user = getUser();
+  const isManager = user?.role === 'Super Admin' || user?.role === 'Fleet Manager';
+  const isAccountant = user?.role === 'Super Admin' || user?.role === 'Accountant';
+
   useEffect(() => {
     api.pettyCash()
       .then((data: { entries: PettyCashEntry[]; summary: Summary }) => {
@@ -86,11 +134,46 @@ function PettyCashPageInner() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
+    api.payoutPool().then(setPool).catch(console.error);
+    api.drivers().then(setDriverOptions).catch(console.error);
+    api.trips().then(setTripOptions).catch(console.error);
   }, []);
 
   function toast(msg: string) {
     setSuccessMsg(msg);
     setTimeout(() => setSuccessMsg(''), 3500);
+  }
+
+  async function handleTransfer(entry: PettyCashEntry) {
+    setTransferringId(entry.id);
+    try {
+      const res = await api.transferPettyCash(entry.id);
+      const updated = entries.map(p => p.id === entry.id ? res.entry : p);
+      setEntries(updated);
+      setPool(res.pool);
+      if (res.entry.transferStatus === 'Success') {
+        toast(`✓ Transferred ${inr(res.entry.transferAmount)} to ${entry.driverName} — Payout ID: ${res.entry.payoutId}`);
+      } else {
+        toast(`Transfer failed for ${entry.driverName}: ${res.entry.failureReason}`);
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Error processing transfer');
+    }
+    setTransferringId(null);
+  }
+
+  async function handleLoadFunds(e: React.FormEvent) {
+    e.preventDefault();
+    if (!loadAmount || loadAmount <= 0) return;
+    setLoadSaving(true);
+    try {
+      const res = await api.loadPayoutPool(loadAmount);
+      setPool(res.pool);
+      setShowLoadFunds(false);
+      setLoadAmount(0);
+      toast(`₹${loadAmount.toLocaleString('en-IN')} loaded into payout pool`);
+    } catch { toast('Error loading funds'); }
+    setLoadSaving(false);
   }
 
   function recalcSummary(updated: PettyCashEntry[]) {
@@ -99,6 +182,8 @@ function PettyCashPageInner() {
       totalSpent: updated.reduce((s, p) => s + p.totalSpent, 0),
       pending: updated.filter(p => p.status === 'Pending').length,
       netBalance: updated.reduce((s, p) => s + p.balance, 0),
+      pendingTransfers: updated.filter(p => p.transferStatus === 'Pending Approval').length,
+      failedTransfers: updated.filter(p => p.transferStatus === 'Failed').length,
     });
   }
 
@@ -143,6 +228,8 @@ function PettyCashPageInner() {
   const totalExp = expForm.diesel + expForm.toll + expForm.food + expForm.maintenance + expForm.misc;
   const previewBalance = reconciling ? reconciling.cashIssued - totalExp : 0;
 
+  const selectedDriver = driverOptions.find(d => d.id === issueForm.driverId);
+
   const filtered = entries.filter(p => {
     const matchFilter = filter === 'All' || p.status === filter;
     const matchSearch = p.driverName.toLowerCase().includes(search.toLowerCase()) ||
@@ -185,6 +272,34 @@ function PettyCashPageInner() {
         <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
           {successMsg}
+        </div>
+      )}
+
+      {/* Payout pool balance */}
+      {pool && (
+        <div className={`rounded-xl border shadow-sm p-4 flex items-center justify-between flex-wrap gap-3 ${pool.lowBalance ? 'bg-red-50 border-red-200' : 'bg-white border-slate-100'}`}>
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="text-xs text-slate-500">Payout Pool Balance</div>
+              <div className={`text-2xl font-bold ${pool.lowBalance ? 'text-red-600' : 'text-slate-800'}`}>{inr(pool.balance)}</div>
+            </div>
+            <div className="text-xs text-slate-400 border-l border-slate-200 pl-4">
+              <div>Total Loaded: {inr(pool.totalLoaded)}</div>
+              <div>Threshold: {inr(pool.lowBalanceThreshold)}</div>
+            </div>
+            {pool.lowBalance && (
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                ⚠ Low balance — load funds to continue payouts
+              </span>
+            )}
+          </div>
+          {isAccountant && (
+            <button onClick={() => setShowLoadFunds(true)}
+              className="px-4 py-2 text-sm font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-900 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              Load Funds
+            </button>
+          )}
         </div>
       )}
 
@@ -250,7 +365,7 @@ function PettyCashPageInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                {['Trip', 'Driver', 'Route', 'Issue Date', 'Cash Issued', 'Diesel', 'Toll', 'Food', 'Maintenance', 'Misc', 'Total Spent', 'Balance', 'Status', 'Actions'].map(h => (
+                {['Trip', 'Driver', 'Route', 'Issue Date', 'Cash Issued', 'Diesel', 'Toll', 'Food', 'Maintenance', 'Misc', 'Total Spent', 'Balance', 'Status', 'Payout', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -282,6 +397,25 @@ function PettyCashPageInner() {
                   </td>
                   <td className="px-4 py-3"><StatusBadge status={p.status} /></td>
                   <td className="px-4 py-3 whitespace-nowrap">
+                    <PayoutStatusBadge status={p.transferStatus} />
+                    {p.transferStatus === 'Success' && (
+                      <div className="text-xs text-slate-400 mt-1">
+                        {p.payoutId} · {p.payoutTime ? fmtTime(p.payoutTime) : ''}
+                      </div>
+                    )}
+                    {p.transferStatus === 'Failed' && (
+                      <div className="text-xs text-red-500 mt-1 max-w-[160px]">{p.failureReason}</div>
+                    )}
+                    <div className="text-xs text-slate-400 mt-1">{inr(p.transferAmount)} via {p.transferMode}</div>
+                    {(p.transferStatus === 'Pending Approval' || p.transferStatus === 'Failed') && isManager && (
+                      <button onClick={() => handleTransfer(p)} disabled={transferringId === p.id}
+                        className={`mt-1.5 text-xs font-medium border px-2 py-1 rounded-lg disabled:opacity-50 flex items-center gap-1.5 ${p.transferStatus === 'Failed' ? 'text-orange-600 hover:text-orange-800 border-orange-200' : 'text-blue-600 hover:text-blue-800 border-blue-200'}`}>
+                        {transferringId === p.id && <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />}
+                        {p.transferStatus === 'Failed' ? 'Retry' : 'Approve & Transfer'}
+                      </button>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
                     {p.status === 'Pending' ? (
                       <button onClick={() => openReconcile(p)}
                         className="text-xs font-medium text-emerald-600 hover:text-emerald-800 border border-emerald-200 px-2 py-1 rounded-lg">
@@ -304,6 +438,41 @@ function PettyCashPageInner() {
         </div>
       </div>
 
+      {/* ── Load Funds Modal ── */}
+      {showLoadFunds && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-800">Load Payout Pool Funds</h3>
+              <button onClick={() => setShowLoadFunds(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleLoadFunds} className="p-6 space-y-4">
+              {pool && (
+                <div className="bg-slate-50 rounded-lg px-4 py-3 text-sm text-slate-600">
+                  Current balance: <span className="font-bold text-slate-800">{inr(pool.balance)}</span>
+                </div>
+              )}
+              <Field label="Amount to Load (₹) *">
+                <input required type="number" min={1} value={loadAmount || ''}
+                  onChange={e => setLoadAmount(parseInt(e.target.value) || 0)}
+                  placeholder="100000" className={INPUT} autoFocus />
+              </Field>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setShowLoadFunds(false)}
+                  className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={loadSaving}
+                  className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+                  {loadSaving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {loadSaving ? 'Loading...' : 'Load Funds'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ── Issue Cash Modal ── */}
       {showIssue && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -315,14 +484,43 @@ function PettyCashPageInner() {
               </button>
             </div>
             <form onSubmit={handleIssue} className="p-6 space-y-4">
-              <Field label="Trip ID *">
-                <input required value={issueForm.tripId} onChange={e => setIssueForm(f => ({ ...f, tripId: e.target.value }))}
-                  placeholder="T001" className={INPUT} />
+              <Field label="Trip *">
+                <select required value={issueForm.tripId} onChange={e => {
+                  const tripId = e.target.value;
+                  const trip = tripOptions.find(t => t.id === tripId);
+                  setIssueForm(f => ({ ...f, tripId, driverId: trip?.driverId || f.driverId }));
+                }} className={SELECT}>
+                  <option value="">Select trip...</option>
+                  {tripOptions.map(t => (
+                    <option key={t.id} value={t.id}>{t.id} — {t.origin} → {t.destination}</option>
+                  ))}
+                </select>
               </Field>
-              <Field label="Driver ID *">
-                <input required value={issueForm.driverId} onChange={e => setIssueForm(f => ({ ...f, driverId: e.target.value }))}
-                  placeholder="D001" className={INPUT} />
+              <Field label="Driver / Payee *">
+                <select required value={issueForm.driverId} onChange={e => setIssueForm(f => ({ ...f, driverId: e.target.value }))} className={SELECT}>
+                  <option value="">Select driver...</option>
+                  {driverOptions.map(d => (
+                    <option key={d.id} value={d.id}>{d.id} — {d.name}</option>
+                  ))}
+                </select>
               </Field>
+
+              {selectedDriver && (
+                <div className="bg-slate-50 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Payout Destination</p>
+                  {selectedDriver.bankDetails?.upiId || selectedDriver.bankDetails?.accountNumber ? (
+                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
+                      <div><span className="text-slate-400">Bank:</span> {selectedDriver.bankDetails.bankName || '—'}</div>
+                      <div><span className="text-slate-400">A/C:</span> {maskAccount(selectedDriver.bankDetails.accountNumber)}</div>
+                      <div><span className="text-slate-400">IFSC:</span> {selectedDriver.bankDetails.ifsc || '—'}</div>
+                      <div><span className="text-slate-400">UPI:</span> {selectedDriver.bankDetails.upiId || '—'}</div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-orange-600">No bank/UPI details on file for this driver. Add them in the Drivers page before transferring.</p>
+                  )}
+                </div>
+              )}
+
               <Field label="Cash Amount (₹) *">
                 <input required type="number" min={1} value={issueForm.cashIssued || ''}
                   onChange={e => setIssueForm(f => ({ ...f, cashIssued: parseInt(e.target.value) || 0 }))}

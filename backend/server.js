@@ -8,7 +8,8 @@ const bcrypt = require('bcryptjs');
 const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
-const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger } = require('./data/mockData');
+const crypto = require('crypto');
+const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool } = require('./data/mockData');
 const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
@@ -33,11 +34,12 @@ function pickFields(obj, fields) {
 // Replaces the in-memory arrays' contents (in place, since routes elsewhere hold
 // references to these `const` arrays) with rows loaded from Postgres at boot.
 async function loadFromDatabase() {
-  const [dbUsers, dbVehicles, dbDrivers, dbTrips] = await Promise.all([
+  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries] = await Promise.all([
     prisma.user.findMany(),
     prisma.vehicle.findMany(),
     prisma.driver.findMany(),
     prisma.trip.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.fuelEntry.findMany({ orderBy: { createdAt: 'desc' } }),
   ]);
   const vehicleExtras = new Map(vehicles.map(v => [v.id, pickFields(v, VEHICLE_MOCK_ONLY_FIELDS)]));
   const driverExtras = new Map(drivers.map(d => [d.id, pickFields(d, DRIVER_MOCK_ONLY_FIELDS)]));
@@ -46,7 +48,8 @@ async function loadFromDatabase() {
   if (dbVehicles.length) vehicles.splice(0, vehicles.length, ...dbVehicles.map(({ driverId, ...v }) => ({ ...v, driver: driverId, ...vehicleExtras.get(v.id) })));
   if (dbDrivers.length)  drivers.splice(0, drivers.length, ...dbDrivers.map(d => ({ ...d, ...driverExtras.get(d.id) })));
   if (dbTrips.length)    trips.splice(0, trips.length, ...dbTrips);
-  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips`);
+  fuelEntries.splice(0, fuelEntries.length, ...dbFuelEntries);
+  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries`);
 }
 
 // Picks exactly the columns the Trip table has, so create/update calls don't choke
@@ -225,7 +228,13 @@ app.get('/api/dashboard', auth, (req, res) => {
   const totalRevenue = trips.filter(t => t.status === 'Completed').reduce((s, t) => s + t.revenue, 0);
   const activeVehicles = vehicles.filter(v => v.status === 'Running').length;
   const unreadAlerts = alerts.filter(a => !a.read).length;
-  res.json({ totalVehicles: vehicles.length, activeVehicles, activeTrips, totalRevenue, totalDrivers: drivers.length, unreadAlerts, fleetStatus: analytics.fleetStatus, monthlyRevenue: analytics.monthlyRevenue });
+  const indentStats = {
+    total: trips.length,
+    pending: trips.filter(t => t.approvalStatus === 'Pending Approval').length,
+    approved: trips.filter(t => t.approvalStatus === 'Approved').length,
+    rejected: trips.filter(t => t.approvalStatus === 'Rejected').length,
+  };
+  res.json({ totalVehicles: vehicles.length, activeVehicles, activeTrips, totalRevenue, totalDrivers: drivers.length, unreadAlerts, fleetStatus: analytics.fleetStatus, monthlyRevenue: analytics.monthlyRevenue, indentStats });
 });
 
 // Fleet
@@ -261,6 +270,20 @@ app.get('/api/drivers/:id', auth, (req, res) => {
   if (!d) return res.status(404).json({ error: 'Driver not found' });
   const driverTrips = trips.filter(t => t.driverId === d.id);
   res.json({ ...d, trips: driverTrips });
+});
+
+app.patch('/api/drivers/:id/bank-details', auth, requireRole('Accountant', 'Fleet Manager'), async (req, res) => {
+  const driver = drivers.find(d => d.id === req.params.id);
+  if (!driver) return res.status(404).json({ error: 'Driver not found' });
+  const { bankName, accountNumber, ifsc, upiId } = req.body;
+  driver.bankDetails = {
+    bankName: bankName || '', accountNumber: accountNumber || '',
+    ifsc: ifsc || '', upiId: upiId || '',
+  };
+  try { await prisma.driver.update({ where: { id: driver.id }, data: { bankDetails: driver.bankDetails } }); }
+  catch (e) { console.error('Failed to persist driver bank details:', e.message); }
+  logAudit(req, 'driver.bank_details.update', { driverId: driver.id, driverName: driver.name });
+  res.json({ success: true, driver });
 });
 
 // Trips
@@ -380,6 +403,34 @@ app.patch('/api/trips/:id/cn', auth, requireRole('Fleet Manager', 'Dispatcher'),
 // Fuel
 app.get('/api/fuel', auth, (req, res) => res.json(fuelEntries));
 app.get('/api/fuel/vehicle/:vehicleId', auth, (req, res) => res.json(fuelEntries.filter(f => f.vehicleId === req.params.vehicleId)));
+
+app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
+  const { vehicleId, date, liters, pricePerLiter, odometer, station, fuelCardUsed, tripId } = req.body;
+  if (!vehicleId || !date || !liters || !pricePerLiter || !odometer) {
+    return res.status(400).json({ error: 'Vehicle, date, litres, price per litre and odometer are required' });
+  }
+  // KM/L is derived from the distance since this vehicle's last fill-up — 0 if
+  // there's no prior reading to compare against (first entry for the vehicle).
+  const previous = fuelEntries
+    .filter(f => f.vehicleId === vehicleId && f.odometer < odometer)
+    .sort((a, b) => b.odometer - a.odometer)[0];
+  const kmpl = previous ? Math.round(((odometer - previous.odometer) / liters) * 10) / 10 : 0;
+
+  const newEntry = {
+    id: 'F' + Date.now(),
+    vehicleId, date, liters, pricePerLiter,
+    totalCost: Math.round(liters * pricePerLiter),
+    odometer, kmpl,
+    station: station || '',
+    fuelCardUsed: !!fuelCardUsed,
+    tripId: tripId || null,
+  };
+  fuelEntries.unshift(newEntry);
+  logAudit(req, 'fuel.add', { entryId: newEntry.id, vehicleId, liters, totalCost: newEntry.totalCost });
+  try { await prisma.fuelEntry.create({ data: newEntry }); }
+  catch (e) { console.error('Failed to persist fuel entry:', e.message); }
+  res.json(newEntry);
+});
 
 // Maintenance
 app.get('/api/maintenance', auth, (req, res) => res.json(maintenanceRecords));
@@ -813,7 +864,23 @@ app.get('/api/petty-cash', auth, (req, res) => {
   const totalSpent  = pettyCash.reduce((s, p) => s + p.totalSpent, 0);
   const pending     = pettyCash.filter(p => p.status === 'Pending').length;
   const netBalance  = pettyCash.reduce((s, p) => s + p.balance, 0);
-  res.json({ entries: pettyCash, summary: { totalIssued, totalSpent, pending, netBalance } });
+  const pendingTransfers = pettyCash.filter(p => p.transferStatus === 'Pending Approval').length;
+  const failedTransfers  = pettyCash.filter(p => p.transferStatus === 'Failed').length;
+  res.json({ entries: pettyCash, summary: { totalIssued, totalSpent, pending, netBalance, pendingTransfers, failedTransfers } });
+});
+
+// Company payout pool (Razorpay/Cashfree payout account balance)
+app.get('/api/payouts/pool', auth, (req, res) => {
+  res.json({ ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold });
+});
+
+app.post('/api/payouts/pool/load', auth, requireRole('Accountant'), (req, res) => {
+  const { amount } = req.body;
+  if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Valid amount required' });
+  payoutPool.totalLoaded += Number(amount);
+  payoutPool.balance += Number(amount);
+  logAudit(req, 'payout.pool.load', { amount: Number(amount), newBalance: payoutPool.balance });
+  res.json({ success: true, pool: { ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold } });
 });
 
 app.patch('/api/petty-cash/:id/reconcile', auth, requireRole('Accountant'), (req, res) => {
@@ -843,10 +910,45 @@ app.post('/api/petty-cash', auth, requireRole('Accountant'), (req, res) => {
     expenses: { diesel: 0, toll: 0, food: 0, maintenance: 0, misc: 0 },
     totalSpent: 0, balance: Number(cashIssued),
     status: 'Pending', settledDate: null, notes: notes || '',
+    transferStatus: 'Pending Approval',
+    transferAmount: Number(cashIssued),
+    transferMode: driver?.bankDetails?.upiId ? 'UPI' : 'Bank Transfer',
+    payoutId: null, payoutTime: null, failureReason: null,
   };
   pettyCash.unshift(newEntry);
   logAudit(req, 'pettycash.issue', { entryId: newEntry.id, tripId, driverId, driverName: newEntry.driverName, cashIssued: newEntry.cashIssued });
   res.json({ success: true, entry: newEntry });
+});
+
+// Approve & transfer (or retry a failed transfer) — simulates a Razorpay/Cashfree Payouts API call
+app.patch('/api/petty-cash/:id/transfer', auth, requireRole('Fleet Manager'), (req, res) => {
+  const entry = pettyCash.find(p => p.id === req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Entry not found' });
+  if (entry.transferStatus !== 'Pending Approval' && entry.transferStatus !== 'Failed') {
+    return res.status(400).json({ error: 'No pending or failed transfer to process for this entry' });
+  }
+
+  const driver = drivers.find(d => d.id === entry.driverId);
+  const hasPayee = driver?.bankDetails?.upiId || driver?.bankDetails?.accountNumber;
+  if (!hasPayee) {
+    return res.status(400).json({ error: `${entry.driverName} has no bank/UPI details on file. Add them in the Drivers page first.` });
+  }
+
+  // Simulate calling the payout API
+  if (entry.transferAmount > payoutPool.balance) {
+    entry.transferStatus = 'Failed';
+    entry.failureReason = 'Insufficient pool balance';
+    logAudit(req, 'pettycash.transfer.failed', { entryId: entry.id, driverId: entry.driverId, amount: entry.transferAmount, reason: entry.failureReason });
+    return res.json({ success: true, entry, pool: { ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold } });
+  }
+
+  payoutPool.balance -= entry.transferAmount;
+  entry.transferStatus = 'Success';
+  entry.failureReason = null;
+  entry.payoutId = 'pout_' + crypto.randomBytes(5).toString('hex');
+  entry.payoutTime = new Date().toISOString();
+  logAudit(req, 'pettycash.transfer.success', { entryId: entry.id, driverId: entry.driverId, driverName: entry.driverName, amount: entry.transferAmount, payoutId: entry.payoutId });
+  res.json({ success: true, entry, pool: { ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold } });
 });
 
 // Tyres

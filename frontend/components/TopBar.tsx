@@ -7,7 +7,7 @@ const titles: Record<string, string> = {
   '/drivers': 'Driver Management',
   '/trips': 'Trip Management',
   '/fuel': 'Fuel Management',
-  '/costing': 'Costing & P&L',
+  '/costing': 'Trip Settlement',
   '/maintenance': 'Maintenance',
   '/compliance': 'Compliance',
   '/analytics': 'Analytics & Reports',

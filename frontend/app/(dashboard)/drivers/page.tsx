@@ -12,6 +12,13 @@ interface SupervisorRecord {
   toMonth: string | null;
 }
 
+interface BankDetails {
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  upiId: string;
+}
+
 interface Driver {
   id: string; name: string; phone: string; altPhone: string;
   dlNumber: string; licenseCategory: string; licenseExpiry: string;
@@ -24,13 +31,17 @@ interface Driver {
   panNumber: string;
   supervisorName: string;
   supervisorHistory: SupervisorRecord[];
+  bankDetails: BankDetails;
 }
+
+const EMPTY_BANK: BankDetails = { bankName: '', accountNumber: '', ifsc: '', upiId: '' };
 
 const EMPTY_FORM = {
   name: '', phone: '', altPhone: '', dob: '', address: '',
   dlNumber: '', licenseCategory: 'HMV', licenseExpiry: '',
   experience: 0, emergencyContact: '', salary: 0,
   aadhaarNumber: '', panNumber: '', supervisorName: 'Self',
+  bankName: '', accountNumber: '', ifsc: '', upiId: '',
 };
 
 const INPUT = "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
@@ -59,6 +70,11 @@ function ScoreBar({ value, color }: { value: number; color: string }) {
 function maskAadhaar(num: string) {
   if (!num || num.length < 4) return '••••-••••-' + (num || '????');
   return `••••-••••-${num.slice(-4)}`;
+}
+
+function maskAccount(num: string) {
+  if (!num || num.length < 4) return '—';
+  return `${'•'.repeat(Math.max(num.length - 4, 4))}${num.slice(-4)}`;
 }
 
 function fmtMonth(ym: string) {
@@ -130,6 +146,9 @@ function DriversPageInner() {
   const [successMsg, setSuccessMsg] = useState('');
   const [showChangeSup, setShowChangeSup] = useState(false);
   const [newSupervisor, setNewSupervisor] = useState('');
+  const [showEditBank, setShowEditBank] = useState(false);
+  const [bankForm, setBankForm] = useState<BankDetails>(EMPTY_BANK);
+  const [bankSaving, setBankSaving] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -161,13 +180,15 @@ function DriversPageInner() {
     e.preventDefault();
     setSaving(true);
     await new Promise(r => setTimeout(r, 600));
+    const { bankName, accountNumber, ifsc, upiId, ...personalForm } = form;
     const newDriver: Driver = {
-      ...form,
+      ...personalForm,
       id: 'D' + (drivers.length + 1).toString().padStart(3, '0'),
       status: 'Active', assignedVehicle: '',
       fuelScore: 0, safetyScore: 0, onTimeDelivery: 0, customerRating: 0,
       totalTrips: 0, totalKm: 0, violations: 0, attendance: 100,
       supervisorHistory: [{ supervisor: form.supervisorName || 'Self', fromMonth: currentYM(), toMonth: null }],
+      bankDetails: { bankName, accountNumber, ifsc, upiId },
     };
     setDrivers(d => [newDriver, ...d]);
     setForm(EMPTY_FORM);
@@ -175,6 +196,24 @@ function DriversPageInner() {
     setSaving(false);
     setSuccessMsg(`Driver ${form.name} added successfully!`);
     setTimeout(() => setSuccessMsg(''), 3000);
+  }
+
+  async function handleSaveBankDetails() {
+    if (!selected) return;
+    setBankSaving(true);
+    try {
+      const res = await api.updateDriverBankDetails(selected.id, bankForm);
+      const updated = { ...selected, bankDetails: res.driver.bankDetails };
+      setDrivers(ds => ds.map(d => d.id === selected.id ? updated : d));
+      setSelected(updated);
+      setShowEditBank(false);
+      setSuccessMsg(`Bank details updated for ${selected.name}`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBankSaving(false);
+    }
   }
 
   function handleChangeSupervisor() {
@@ -221,6 +260,7 @@ function DriversPageInner() {
         onTimeDelivery: 0, customerRating: 0, totalTrips: 0,
         totalKm: 0, violations: 0, attendance: 100,
         supervisorHistory: [{ supervisor: String(row['Supervisor'] || 'Self'), fromMonth: currentYM(), toMonth: null }],
+        bankDetails: EMPTY_BANK,
       }));
       setDrivers(d => [...imported, ...d]);
       setSuccessMsg(`${imported.length} driver(s) imported successfully!`);
@@ -342,7 +382,7 @@ function DriversPageInner() {
                     <td className="px-4 py-3 text-sm text-slate-600">{d.totalTrips}</td>
                     <td className="px-4 py-3 text-sm text-slate-600 whitespace-nowrap">₹{d.salary.toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => { setSelected(d); setShowChangeSup(false); }} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Profile</button>
+                      <button onClick={() => { setSelected(d); setShowChangeSup(false); setShowEditBank(false); }} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Profile</button>
                     </td>
                   </tr>
                 );
@@ -435,6 +475,24 @@ function DriversPageInner() {
                   <Field label="Foreman / Supervisor">
                     <input value={form.supervisorName} onChange={e => set('supervisorName', e.target.value)}
                       placeholder="Name or 'Self'" className={INPUT} />
+                  </Field>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Bank / UPI Details</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Bank Name">
+                    <input value={form.bankName} onChange={e => set('bankName', e.target.value)} placeholder="State Bank of India" className={INPUT} />
+                  </Field>
+                  <Field label="Account Number">
+                    <input value={form.accountNumber} onChange={e => set('accountNumber', e.target.value.replace(/\D/g, ''))} placeholder="Account number" className={INPUT} />
+                  </Field>
+                  <Field label="IFSC Code">
+                    <input value={form.ifsc} onChange={e => set('ifsc', e.target.value.toUpperCase())} placeholder="SBIN0001234" maxLength={11} className={INPUT} />
+                  </Field>
+                  <Field label="UPI ID">
+                    <input value={form.upiId} onChange={e => set('upiId', e.target.value)} placeholder="name@upi" className={INPUT} />
                   </Field>
                 </div>
               </div>
@@ -542,6 +600,52 @@ function DriversPageInner() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Bank / UPI Details */}
+            <div className="border-t border-slate-100 pt-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-semibold text-slate-500 uppercase">Bank / UPI Details</h4>
+                <button onClick={() => {
+                  setBankForm(selected.bankDetails || EMPTY_BANK);
+                  setShowEditBank(s => !s);
+                }} className="text-xs text-blue-600 hover:text-blue-800 font-medium border border-blue-200 px-2 py-1 rounded-lg">
+                  {showEditBank ? 'Cancel' : 'Edit'}
+                </button>
+              </div>
+
+              {showEditBank ? (
+                <div className="bg-slate-50 rounded-lg p-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Bank Name">
+                      <input value={bankForm.bankName} onChange={e => setBankForm(f => ({ ...f, bankName: e.target.value }))} placeholder="State Bank of India" className={INPUT} />
+                    </Field>
+                    <Field label="Account Number">
+                      <input value={bankForm.accountNumber} onChange={e => setBankForm(f => ({ ...f, accountNumber: e.target.value.replace(/\D/g, '') }))} placeholder="Account number" className={INPUT} />
+                    </Field>
+                    <Field label="IFSC Code">
+                      <input value={bankForm.ifsc} onChange={e => setBankForm(f => ({ ...f, ifsc: e.target.value.toUpperCase() }))} placeholder="SBIN0001234" maxLength={11} className={INPUT} />
+                    </Field>
+                    <Field label="UPI ID">
+                      <input value={bankForm.upiId} onChange={e => setBankForm(f => ({ ...f, upiId: e.target.value }))} placeholder="name@upi" className={INPUT} />
+                    </Field>
+                  </div>
+                  <div className="flex justify-end">
+                    <button onClick={handleSaveBankDetails} disabled={bankSaving}
+                      className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+                      {bankSaving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                      {bankSaving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><div className="text-xs text-slate-500">Bank Name</div><div className="font-medium text-slate-800">{selected.bankDetails?.bankName || '—'}</div></div>
+                  <div><div className="text-xs text-slate-500">Account Number</div><div className="font-medium text-slate-800 font-mono">{maskAccount(selected.bankDetails?.accountNumber || '')}</div></div>
+                  <div><div className="text-xs text-slate-500">IFSC Code</div><div className="font-medium text-slate-800 font-mono">{selected.bankDetails?.ifsc || '—'}</div></div>
+                  <div><div className="text-xs text-slate-500">UPI ID</div><div className="font-medium text-slate-800">{selected.bankDetails?.upiId || '—'}</div></div>
+                </div>
+              )}
             </div>
 
             {/* Performance KPIs */}

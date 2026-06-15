@@ -77,6 +77,7 @@ model Driver {
   panNumber         String
   supervisorName    String
   supervisorHistory Json
+  bankDetails       Json    @default("{}")
 }
 
 model Trip {
@@ -133,4 +134,19 @@ model Trip {
   delay            Int
   notes            String?
   createdAt        DateTime @default(now())
+}
+
+model FuelEntry {
+  id            String   @id
+  vehicleId     String
+  date          String
+  liters        Float
+  pricePerLiter Float
+  totalCost     Int
+  odometer      Int
+  kmpl          Float
+  station       String
+  fuelCardUsed  Boolean
+  tripId        String?
+  createdAt     DateTime @default(now())
 }

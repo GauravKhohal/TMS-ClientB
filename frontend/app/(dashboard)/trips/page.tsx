@@ -31,7 +31,7 @@ interface Trip {
   consigneeName: string; consigneeAddress: string; consigneeContact: string;
 }
 
-interface VehicleOption { id: string; regNumber: string; status: string; }
+interface VehicleOption { id: string; regNumber: string; status: string; driver: string | null; }
 interface DriverOption { id: string; name: string; status: string; }
 interface ComplianceItem { status: string; expiry: string; daysLeft: number; provider?: string; }
 interface ComplianceRecord {
@@ -498,7 +498,7 @@ function TripsPageInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                {['Voucher', 'Route & Stops', 'Customer', 'Cargo', 'Status', 'Approval Status', 'Vehicle', 'Distance / ETA', 'Freight', 'Loading Chg.', 'Unloading Chg.', 'Other Chg.', 'Total', 'Advance', 'Balance', 'POD', 'Actions'].map(h => (
+                {['Voucher', 'Route & Stops', 'Customer', 'Cargo', 'Status', 'Approval Status', 'Distance / ETA', 'Freight', 'Loading Chg.', 'Unloading Chg.', 'Other Chg.', 'Total', 'Advance', 'Balance', 'POD', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -536,7 +536,6 @@ function TripsPageInner() {
                       <div className="text-xs text-red-500 mt-0.5 max-w-[10rem]" title={t.rejectionReason}>{t.rejectionReason}</div>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId || '—'} / {t.driverId || '—'}</td>
                   <td className="px-4 py-3">
                     <div className="text-xs font-medium text-slate-700">{t.distance > 0 ? `${t.distance.toLocaleString()} km` : '—'}</div>
                     <div className="text-xs text-slate-400">{fmtHrs(t.approxTimeHrs)}</div>
@@ -920,12 +919,6 @@ function TripsPageInner() {
                   <Field label="Expected Arrival (ETA)">
                     <input type="date" className={INPUT} value={form.eta} onChange={e => setF('eta', e.target.value)} />
                   </Field>
-                  <Field label="Vehicle ID">
-                    <input className={INPUT} placeholder="V001" value={form.vehicleId} onChange={e => setF('vehicleId', e.target.value)} />
-                  </Field>
-                  <Field label="Driver ID">
-                    <input className={INPUT} placeholder="D001" value={form.driverId} onChange={e => setF('driverId', e.target.value)} />
-                  </Field>
                 </div>
               </div>
 
@@ -1298,7 +1291,11 @@ function TripsPageInner() {
             <form onSubmit={handlePlacementSave} className="p-6 space-y-4">
               <Field label="Vehicle *">
                 <select required className={SELECT} value={placementForm.vehicleId}
-                  onChange={e => setPlacementForm(f => ({ ...f, vehicleId: e.target.value }))}>
+                  onChange={e => {
+                    const vehicleId = e.target.value;
+                    const vehicle = vehicleOptions.find(v => v.id === vehicleId);
+                    setPlacementForm(f => ({ ...f, vehicleId, driverId: vehicle?.driver || f.driverId }));
+                  }}>
                   <option value="">Select vehicle</option>
                   {vehicleOptions.map(v => <option key={v.id} value={v.id}>{v.id} — {v.regNumber} ({v.status})</option>)}
                 </select>
