@@ -34,12 +34,14 @@ function pickFields(obj, fields) {
 // Replaces the in-memory arrays' contents (in place, since routes elsewhere hold
 // references to these `const` arrays) with rows loaded from Postgres at boot.
 async function loadFromDatabase() {
-  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries] = await Promise.all([
+  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries, dbMaintenanceRecords, dbComplianceRecords] = await Promise.all([
     prisma.user.findMany(),
     prisma.vehicle.findMany(),
     prisma.driver.findMany(),
     prisma.trip.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.fuelEntry.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.maintenanceRecord.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.complianceRecord.findMany(),
   ]);
   const vehicleExtras = new Map(vehicles.map(v => [v.id, pickFields(v, VEHICLE_MOCK_ONLY_FIELDS)]));
   const driverExtras = new Map(drivers.map(d => [d.id, pickFields(d, DRIVER_MOCK_ONLY_FIELDS)]));
@@ -49,7 +51,9 @@ async function loadFromDatabase() {
   if (dbDrivers.length)  drivers.splice(0, drivers.length, ...dbDrivers.map(d => ({ ...d, ...driverExtras.get(d.id) })));
   if (dbTrips.length)    trips.splice(0, trips.length, ...dbTrips);
   fuelEntries.splice(0, fuelEntries.length, ...dbFuelEntries);
-  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries`);
+  maintenanceRecords.splice(0, maintenanceRecords.length, ...dbMaintenanceRecords);
+  complianceRecords.splice(0, complianceRecords.length, ...dbComplianceRecords);
+  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records`);
 }
 
 // Picks exactly the columns the Trip table has, so create/update calls don't choke
@@ -435,26 +439,82 @@ app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (r
 // Maintenance
 app.get('/api/maintenance', auth, (req, res) => res.json(maintenanceRecords));
 
-// Compliance — status calculated live from expiry dates
-app.get('/api/compliance', auth, (req, res) => {
-  const today = new Date();
-  function calcStatus(expiryStr) {
-    const days = Math.ceil((new Date(expiryStr) - today) / 86400000);
-    if (days < 0)   return { status: 'Expired',       daysLeft: days };
-    if (days <= 30)  return { status: 'Expiring Soon', daysLeft: days };
-    if (days <= 90)  return { status: 'Due Soon',      daysLeft: days };
-    return           { status: 'Valid',                daysLeft: days };
+app.post('/api/maintenance', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
+  const { vehicleId, type, description, date, vendor, estimatedCompletion, cost, parts } = req.body;
+  if (!vehicleId || !type || !description || !date) {
+    return res.status(400).json({ error: 'Vehicle, type, description and date are required' });
   }
-  const computed = complianceRecords.map(r => ({
-    ...r,
-    rc:            { ...r.rc,            ...calcStatus(r.rc.expiry) },
-    insurance:     { ...r.insurance,     ...calcStatus(r.insurance.expiry) },
-    fitness:       { ...r.fitness,       ...calcStatus(r.fitness.expiry) },
-    pollution:     { ...r.pollution,     ...calcStatus(r.pollution.expiry) },
-    statePermit:   { ...r.statePermit,   ...calcStatus(r.statePermit.expiry) },
-    nationalPermit:{ ...r.nationalPermit,...calcStatus(r.nationalPermit.expiry) },
-  }));
-  res.json(computed);
+
+  const newRecord = {
+    id: 'M' + Date.now(),
+    vehicleId, type, description, date,
+    status: 'Pending',
+    cost: Math.round(Number(cost) || 0),
+    vendor: vendor || '',
+    estimatedCompletion: estimatedCompletion || '',
+    parts: Array.isArray(parts) ? parts : [],
+  };
+  maintenanceRecords.unshift(newRecord);
+  logAudit(req, 'maintenance.add', { recordId: newRecord.id, vehicleId, type, cost: newRecord.cost });
+  try { await prisma.maintenanceRecord.create({ data: newRecord }); }
+  catch (e) { console.error('Failed to persist maintenance record:', e.message); }
+  res.json(newRecord);
+});
+
+// Compliance — status calculated live from expiry dates
+// A record's docs default to an empty expiry (status "Not Set") until filled in
+// via the Edit Compliance modal, so every vehicle always appears in the matrix.
+function calcComplianceStatus(expiryStr) {
+  if (!expiryStr) return { status: 'Not Set', daysLeft: null };
+  const days = Math.ceil((new Date(expiryStr) - new Date()) / 86400000);
+  if (days < 0)   return { status: 'Expired',       daysLeft: days };
+  if (days <= 30)  return { status: 'Expiring Soon', daysLeft: days };
+  if (days <= 90)  return { status: 'Due Soon',      daysLeft: days };
+  return           { status: 'Valid',                daysLeft: days };
+}
+
+function computeComplianceRecord(vehicleId) {
+  const r = complianceRecords.find(c => c.vehicleId === vehicleId) || {};
+  return {
+    vehicleId,
+    rc:             { expiry: '',                  ...r.rc,             ...calcComplianceStatus((r.rc || {}).expiry) },
+    insurance:      { expiry: '', provider: '',    ...r.insurance,      ...calcComplianceStatus((r.insurance || {}).expiry) },
+    fitness:        { expiry: '',                  ...r.fitness,        ...calcComplianceStatus((r.fitness || {}).expiry) },
+    pollution:      { expiry: '',                  ...r.pollution,      ...calcComplianceStatus((r.pollution || {}).expiry) },
+    statePermit:    { expiry: '',                  ...r.statePermit,    ...calcComplianceStatus((r.statePermit || {}).expiry) },
+    nationalPermit: { expiry: '',                  ...r.nationalPermit, ...calcComplianceStatus((r.nationalPermit || {}).expiry) },
+  };
+}
+
+app.get('/api/compliance', auth, (req, res) => {
+  res.json(vehicles.map(v => computeComplianceRecord(v.id)));
+});
+
+app.put('/api/compliance/:vehicleId', auth, requireRole('Fleet Manager'), async (req, res) => {
+  const { vehicleId } = req.params;
+  if (!vehicles.find(v => v.id === vehicleId)) return res.status(404).json({ error: 'Vehicle not found' });
+
+  const { rc, insurance, fitness, pollution, statePermit, nationalPermit } = req.body;
+  const record = {
+    vehicleId,
+    rc:             { expiry: rc?.expiry || '' },
+    insurance:      { expiry: insurance?.expiry || '', provider: insurance?.provider || '' },
+    fitness:        { expiry: fitness?.expiry || '' },
+    pollution:      { expiry: pollution?.expiry || '' },
+    statePermit:    { expiry: statePermit?.expiry || '' },
+    nationalPermit: { expiry: nationalPermit?.expiry || '' },
+  };
+
+  const idx = complianceRecords.findIndex(c => c.vehicleId === vehicleId);
+  if (idx >= 0) complianceRecords[idx] = record; else complianceRecords.push(record);
+
+  logAudit(req, 'compliance.update', { vehicleId });
+  try {
+    const { vehicleId: _vid, ...data } = record;
+    await prisma.complianceRecord.upsert({ where: { vehicleId }, create: record, update: data });
+  } catch (e) { console.error('Failed to persist compliance record:', e.message); }
+
+  res.json(computeComplianceRecord(vehicleId));
 });
 
 // ── TP Verification (RC / DL / PAN via Parivahan / NSDL) ────────────────────

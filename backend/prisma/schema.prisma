@@ -150,3 +150,28 @@ model FuelEntry {
   tripId        String?
   createdAt     DateTime @default(now())
 }
+
+model MaintenanceRecord {
+  id                  String   @id
+  vehicleId           String
+  type                String
+  description         String
+  date                String
+  status              String
+  cost                Int
+  vendor              String
+  estimatedCompletion String
+  parts               Json
+  createdAt           DateTime @default(now())
+}
+
+model ComplianceRecord {
+  vehicleId      String   @id
+  rc             Json
+  insurance      Json
+  fitness        Json
+  pollution      Json
+  statePermit    Json
+  nationalPermit Json
+  updatedAt      DateTime @updatedAt
+}

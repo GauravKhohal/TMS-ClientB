@@ -7,7 +7,7 @@ import { useDateRange } from '@/lib/useDateRange';
 interface DocItem {
   status: string;
   expiry: string;
-  daysLeft: number;
+  daysLeft: number | null;
   provider?: string;
 }
 
@@ -35,7 +35,14 @@ const STATUS_STYLES: Record<string, string> = {
   'Due Soon':      'bg-yellow-100 text-yellow-700',
   'Expiring Soon': 'bg-orange-100 text-orange-700',
   Expired:         'bg-red-100 text-red-700',
+  'Not Set':       'bg-slate-100 text-slate-400',
 };
+
+const INPUT = "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div><label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>{children}</div>;
+}
 
 function daysLeft(expiryStr: string) {
   return Math.ceil((new Date(expiryStr).getTime() - Date.now()) / 86400000);
@@ -55,10 +62,12 @@ function ComplianceCell({ item }: { item: DocItem }) {
       <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[item.status] || 'bg-slate-100 text-slate-600'}`}>
         {item.status}
       </span>
-      <div className="text-xs text-slate-400 mt-0.5">{item.expiry}</div>
-      <div className={`text-xs font-medium mt-0.5 ${days < 0 ? 'text-red-500' : days <= 30 ? 'text-orange-500' : days <= 90 ? 'text-yellow-600' : 'text-slate-400'}`}>
-        {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
-      </div>
+      <div className="text-xs text-slate-400 mt-0.5">{item.expiry || '—'}</div>
+      {days !== null && (
+        <div className={`text-xs font-medium mt-0.5 ${days < 0 ? 'text-red-500' : days <= 30 ? 'text-orange-500' : days <= 90 ? 'text-yellow-600' : 'text-slate-400'}`}>
+          {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
+        </div>
+      )}
     </td>
   );
 }
@@ -72,11 +81,20 @@ function downloadCSV(filename: string, rows: string[][], headers: string[]) {
   URL.revokeObjectURL(url);
 }
 
+const EMPTY_COMPLIANCE_FORM = {
+  rcExpiry: '', insuranceExpiry: '', insuranceProvider: '',
+  fitnessExpiry: '', pollutionExpiry: '', statePermitExpiry: '', nationalPermitExpiry: '',
+};
+
 export default function CompliancePage() {
   const [records, setRecords] = useState<ComplianceRecord[]>([]);
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [loading, setLoading] = useState(true);
   const { preset, setPreset, fromYM, setFromYM, toYM, setToYM, effectiveFrom, effectiveTo, inRange } = useDateRange();
+  const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState(EMPTY_COMPLIANCE_FORM);
+  const [saving, setSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     Promise.all([api.compliance(), api.drivers()])
@@ -84,6 +102,47 @@ export default function CompliancePage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  function openEdit(r: ComplianceRecord) {
+    setEditVehicleId(r.vehicleId);
+    setEditForm({
+      rcExpiry: r.rc.expiry,
+      insuranceExpiry: r.insurance.expiry,
+      insuranceProvider: r.insurance.provider || '',
+      fitnessExpiry: r.fitness.expiry,
+      pollutionExpiry: r.pollution.expiry,
+      statePermitExpiry: r.statePermit.expiry,
+      nationalPermitExpiry: r.nationalPermit.expiry,
+    });
+  }
+
+  function setEditField(field: string, value: string) {
+    setEditForm(f => ({ ...f, [field]: value }));
+  }
+
+  async function handleSaveCompliance(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editVehicleId) return;
+    setSaving(true);
+    try {
+      const updated: ComplianceRecord = await api.saveCompliance(editVehicleId, {
+        rc: { expiry: editForm.rcExpiry },
+        insurance: { expiry: editForm.insuranceExpiry, provider: editForm.insuranceProvider },
+        fitness: { expiry: editForm.fitnessExpiry },
+        pollution: { expiry: editForm.pollutionExpiry },
+        statePermit: { expiry: editForm.statePermitExpiry },
+        nationalPermit: { expiry: editForm.nationalPermitExpiry },
+      });
+      setRecords(prev => prev.map(r => r.vehicleId === updated.vehicleId ? updated : r));
+      setEditVehicleId(null);
+      setSuccessMsg(`Compliance details updated for ${updated.vehicleId}`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // Filter records to vehicles with any doc expiring within the selected period
   const filteredRecords = records.filter(r =>
@@ -115,6 +174,13 @@ export default function CompliancePage() {
 
   return (
     <div className="space-y-5">
+      {successMsg && (
+        <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-4 py-3 rounded-xl flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          {successMsg}
+        </div>
+      )}
+
       <DateRangeBar preset={preset} setPreset={setPreset} fromYM={fromYM} setFromYM={setFromYM} toYM={toYM} setToYM={setToYM} effectiveFrom={effectiveFrom} effectiveTo={effectiveTo} count={filteredRecords.length} total={records.length} />
 
       {/* Alert banner */}
@@ -167,7 +233,7 @@ export default function CompliancePage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                {['Vehicle', 'RC', 'Insurance', 'Fitness Cert.', 'Pollution Cert.', 'State Permit', 'National Permit'].map(h => (
+                {['Vehicle', 'RC', 'Insurance', 'Fitness Cert.', 'Pollution Cert.', 'State Permit', 'National Permit', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -182,6 +248,9 @@ export default function CompliancePage() {
                   <ComplianceCell item={r.pollution} />
                   <ComplianceCell item={r.statePermit} />
                   <ComplianceCell item={r.nationalPermit} />
+                  <td className="px-4 py-3">
+                    <button onClick={() => openEdit(r)} className="text-sm text-blue-600 hover:text-blue-700 font-medium">Edit</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -213,6 +282,52 @@ export default function CompliancePage() {
           })}
         </div>
       </div>
+
+      {/* Edit Compliance Modal */}
+      {editVehicleId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-800">Edit Compliance — {editVehicleId}</h3>
+              <button onClick={() => setEditVehicleId(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleSaveCompliance} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="RC Expiry">
+                  <input type="date" value={editForm.rcExpiry} onChange={e => setEditField('rcExpiry', e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="Fitness Cert. Expiry">
+                  <input type="date" value={editForm.fitnessExpiry} onChange={e => setEditField('fitnessExpiry', e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="Insurance Expiry">
+                  <input type="date" value={editForm.insuranceExpiry} onChange={e => setEditField('insuranceExpiry', e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="Insurance Provider">
+                  <input value={editForm.insuranceProvider} onChange={e => setEditField('insuranceProvider', e.target.value)} placeholder="e.g. HDFC ERGO" className={INPUT} />
+                </Field>
+                <Field label="Pollution Cert. Expiry">
+                  <input type="date" value={editForm.pollutionExpiry} onChange={e => setEditField('pollutionExpiry', e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="State Permit Expiry">
+                  <input type="date" value={editForm.statePermitExpiry} onChange={e => setEditField('statePermitExpiry', e.target.value)} className={INPUT} />
+                </Field>
+                <Field label="National Permit Expiry">
+                  <input type="date" value={editForm.nationalPermitExpiry} onChange={e => setEditField('nationalPermitExpiry', e.target.value)} className={INPUT} />
+                </Field>
+              </div>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setEditVehicleId(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+                  {saving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {saving ? 'Saving...' : 'Save Compliance'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -36,25 +36,13 @@ const trips = [
 // clients begin with a clean fuel log instead of demo entries.
 const fuelEntries = [];
 
-const maintenanceRecords = [
-  { id: 'M001', vehicleId: 'V004', type: 'Breakdown', description: 'Engine overheating — coolant leak', date: '2026-05-24', status: 'In Progress', cost: 18000, vendor: 'Tata Authorized Service', estimatedCompletion: '2026-05-28', parts: ['Coolant hose', 'Thermostat'] },
-  { id: 'M002', vehicleId: 'V001', type: 'Preventive', description: '40,000 KM Service — oil change, filters', date: '2026-03-15', status: 'Completed', cost: 8500, vendor: 'Tata Motors Pune', estimatedCompletion: '2026-03-15', parts: ['Oil filter', 'Air filter', 'Engine oil'] },
-  { id: 'M003', vehicleId: 'V002', type: 'Preventive', description: 'Brake pad replacement', date: '2026-02-20', status: 'Completed', cost: 12000, vendor: 'Ashok Leyland ASC', estimatedCompletion: '2026-02-20', parts: ['Brake pads (set of 4)', 'Brake fluid'] },
-  { id: 'M004', vehicleId: 'V008', type: 'Breakdown', description: 'Turbocharger failure', date: '2026-05-25', status: 'Pending', cost: 45000, vendor: 'Force Motors Service', estimatedCompletion: '2026-06-02', parts: ['Turbocharger unit'] },
-  { id: 'M005', vehicleId: 'V003', type: 'Tyre', description: 'Tyre replacement — 2 rear tyres worn', date: '2026-04-01', status: 'Completed', cost: 22000, vendor: 'MRF Dealer Ahmedabad', estimatedCompletion: '2026-04-01', parts: ['MRF Mozzo 2 x2'] },
-  { id: 'M006', vehicleId: 'V005', type: 'Preventive', description: '10,000 KM First Service', date: '2026-05-01', status: 'Completed', cost: 5000, vendor: 'Volvo Trucks India', estimatedCompletion: '2026-05-01', parts: ['Oil filter', 'Engine oil', 'AC filter'] },
-];
+// Loaded from the database at boot via loadFromDatabase() — starts empty so
+// clients begin with a clean maintenance log instead of demo entries.
+const maintenanceRecords = [];
 
-const complianceRecords = [
-  { vehicleId: 'V001', rc: { status: 'Valid', expiry: '2031-01-10' }, insurance: { status: 'Valid', expiry: '2027-01-10', provider: 'New India Assurance' }, fitness: { status: 'Valid', expiry: '2026-11-20' }, pollution: { status: 'Valid', expiry: '2026-08-15' }, statePermit: { status: 'Valid', expiry: '2026-09-30' }, nationalPermit: { status: 'Valid', expiry: '2026-09-30' } },
-  { vehicleId: 'V002', rc: { status: 'Valid', expiry: '2030-06-15' }, insurance: { status: 'Expiring Soon', expiry: '2026-08-15', provider: 'Oriental Insurance' }, fitness: { status: 'Expiring Soon', expiry: '2026-07-10' }, pollution: { status: 'Valid', expiry: '2026-10-20' }, statePermit: { status: 'Valid', expiry: '2026-12-31' }, nationalPermit: { status: 'Valid', expiry: '2026-12-31' } },
-  { vehicleId: 'V003', rc: { status: 'Valid', expiry: '2032-03-20' }, insurance: { status: 'Valid', expiry: '2027-03-20', provider: 'HDFC ERGO' }, fitness: { status: 'Valid', expiry: '2027-01-15' }, pollution: { status: 'Valid', expiry: '2026-12-01' }, statePermit: { status: 'Valid', expiry: '2027-06-30' }, nationalPermit: { status: 'Valid', expiry: '2027-06-30' } },
-  { vehicleId: 'V004', rc: { status: 'Valid', expiry: '2029-08-10' }, insurance: { status: 'Expiring Soon', expiry: '2026-06-01', provider: 'United India Insurance' }, fitness: { status: 'Expired', expiry: '2026-05-28' }, pollution: { status: 'Expiring Soon', expiry: '2026-06-15' }, statePermit: { status: 'Valid', expiry: '2026-08-15' }, nationalPermit: { status: 'Valid', expiry: '2026-08-15' } },
-  { vehicleId: 'V005', rc: { status: 'Valid', expiry: '2033-11-25' }, insurance: { status: 'Valid', expiry: '2028-02-10', provider: 'Bajaj Allianz' }, fitness: { status: 'Valid', expiry: '2027-11-30' }, pollution: { status: 'Valid', expiry: '2027-02-10' }, statePermit: { status: 'Valid', expiry: '2027-04-20' }, nationalPermit: { status: 'Valid', expiry: '2027-04-20' } },
-  { vehicleId: 'V006', rc: { status: 'Valid', expiry: '2031-04-01' }, insurance: { status: 'Valid', expiry: '2026-09-20', provider: 'Tata AIG' }, fitness: { status: 'Valid', expiry: '2026-10-05' }, pollution: { status: 'Expiring Soon', expiry: '2026-07-10' }, statePermit: { status: 'Valid', expiry: '2026-11-30' }, nationalPermit: { status: 'Valid', expiry: '2026-11-30' } },
-  { vehicleId: 'V007', rc: { status: 'Valid', expiry: '2030-09-20' }, insurance: { status: 'Valid', expiry: '2026-12-01', provider: 'Reliance General Insurance' }, fitness: { status: 'Due Soon', expiry: '2026-08-20' }, pollution: { status: 'Due Soon', expiry: '2026-09-10' }, statePermit: { status: 'Expiring Soon', expiry: '2026-07-15' }, nationalPermit: { status: 'Expiring Soon', expiry: '2026-07-15' } },
-  { vehicleId: 'V008', rc: { status: 'Valid', expiry: '2032-10-01' }, insurance: { status: 'Valid', expiry: '2027-01-30', provider: 'ICICI Lombard' }, fitness: { status: 'Valid', expiry: '2026-12-10' }, pollution: { status: 'Valid', expiry: '2026-11-20' }, statePermit: { status: 'Valid', expiry: '2026-10-05' }, nationalPermit: { status: 'Valid', expiry: '2026-10-05' } },
-];
+// Loaded from the database at boot via loadFromDatabase() — starts empty so
+// vehicles show "Not Set" compliance docs until each one is filled in via the UI.
+const complianceRecords = [];
 
 const alerts = [
   { id: 'A001', type: 'Speed Violation', severity: 'High', vehicleId: 'V003', message: 'V003 exceeded 80 km/h speed limit — 85 km/h detected', timestamp: '2026-05-26T10:42:00', read: false },

@@ -79,26 +79,27 @@ function MaintenancePageInner() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    const cost = parseFloat(form.cost) || 0;
-    const newRecord: MaintenanceRecord = {
-      id: 'M' + Date.now(),
-      vehicleId: form.vehicleId,
-      type: form.type,
-      description: form.description,
-      date: form.date,
-      status: 'Pending',
-      cost,
-      vendor: form.vendor,
-      estimatedCompletion: form.estimatedCompletion,
-      parts: form.parts ? form.parts.split(',').map(p => p.trim()).filter(Boolean) : [],
-    };
-    setRecords(prev => [newRecord, ...prev]);
-    setForm(EMPTY_FORM);
-    setShowAdd(false);
-    setSaving(false);
-    setSuccessMsg(`Maintenance logged for ${form.vehicleId} — ₹${cost.toLocaleString('en-IN')}`);
-    setTimeout(() => setSuccessMsg(''), 3000);
+    try {
+      const newRecord: MaintenanceRecord = await api.addMaintenanceRecord({
+        vehicleId: form.vehicleId,
+        type: form.type,
+        description: form.description,
+        date: form.date,
+        vendor: form.vendor,
+        estimatedCompletion: form.estimatedCompletion,
+        cost: parseFloat(form.cost) || 0,
+        parts: form.parts ? form.parts.split(',').map(p => p.trim()).filter(Boolean) : [],
+      });
+      setRecords(prev => [newRecord, ...prev]);
+      setForm(EMPTY_FORM);
+      setShowAdd(false);
+      setSuccessMsg(`Maintenance logged for ${newRecord.vehicleId} — ₹${newRecord.cost.toLocaleString('en-IN')}`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
@@ -173,33 +174,6 @@ function MaintenancePageInner() {
                   <div className="text-xs text-slate-400">{r.id}</div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Upcoming Schedule */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-slate-800 mb-4">Upcoming Preventive Maintenance Schedule</h3>
-        <div className="space-y-3">
-          {[
-            { vehicle: 'V001', task: '50,000 KM Service', dueAt: '145,500 KM', current: '145,230 KM', urgency: 'Due Soon' },
-            { vehicle: 'V007', task: '180,000 KM Service', dueAt: '180,000 KM', current: '178,500 KM', urgency: 'Due Soon' },
-            { vehicle: 'V006', task: 'Annual Brake Inspection', dueAt: 'Jun 2026', current: 'May 2026', urgency: 'This Month' },
-            { vehicle: 'V002', task: 'Clutch Plate Inspection', dueAt: '100,000 KM', current: '98,450 KM', urgency: 'Upcoming' },
-            { vehicle: 'V004', task: 'AC Service', dueAt: 'Jun 2026', current: 'May 2026', urgency: 'Upcoming' },
-          ].map(item => (
-            <div key={item.vehicle + item.task} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-sm font-medium text-slate-700 w-10">{item.vehicle}</span>
-                <div>
-                  <div className="text-sm font-medium text-slate-700">{item.task}</div>
-                  <div className="text-xs text-slate-500">Due: {item.dueAt} · Current: {item.current}</div>
-                </div>
-              </div>
-              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${item.urgency === 'Due Soon' ? 'bg-orange-100 text-orange-700' : item.urgency === 'This Month' ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>
-                {item.urgency}
-              </span>
             </div>
           ))}
         </div>
