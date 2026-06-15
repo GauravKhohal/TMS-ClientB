@@ -33,6 +33,25 @@ interface Trip {
 
 interface VehicleOption { id: string; regNumber: string; status: string; }
 interface DriverOption { id: string; name: string; status: string; }
+interface ComplianceItem { status: string; expiry: string; daysLeft: number; provider?: string; }
+interface ComplianceRecord {
+  vehicleId: string; rc: ComplianceItem; insurance: ComplianceItem; fitness: ComplianceItem;
+  pollution: ComplianceItem; statePermit: ComplianceItem; nationalPermit: ComplianceItem;
+}
+
+const COMPLIANCE_STATUS_ORDER = ['Expired', 'Expiring Soon', 'Due Soon', 'Valid'];
+const COMPLIANCE_BADGE_COLORS: Record<string, string> = {
+  Expired: 'bg-red-100 text-red-700',
+  'Expiring Soon': 'bg-yellow-100 text-yellow-700',
+  'Due Soon': 'bg-blue-100 text-blue-700',
+  Valid: 'bg-green-100 text-green-700',
+};
+const COMPLIANCE_PANEL_COLORS: Record<string, string> = {
+  Expired: 'border-red-200 bg-red-50',
+  'Expiring Soon': 'border-yellow-200 bg-yellow-50',
+  'Due Soon': 'border-blue-200 bg-blue-50',
+  Valid: 'border-green-200 bg-green-50',
+};
 
 const EMPTY_PLACEMENT = () => ({ vehicleId: '', driverId: '', placementDateTime: '', placementRemarks: '' });
 const EMPTY_CN = () => ({ consigneeName: '', consigneeAddress: '', consigneeContact: '' });
@@ -122,6 +141,7 @@ function TripsPageInner() {
   const [activeTab, setActiveTab] = useState<'indent' | 'placement' | 'cn'>('indent');
   const [vehicleOptions, setVehicleOptions] = useState<VehicleOption[]>([]);
   const [driverOptions, setDriverOptions]   = useState<DriverOption[]>([]);
+  const [complianceRecords, setComplianceRecords] = useState<ComplianceRecord[]>([]);
 
   // Vehicle Placement
   const [placementModal, setPlacementModal]   = useState<Trip | null>(null);
@@ -140,7 +160,35 @@ function TripsPageInner() {
     api.trips().then(setTrips).catch(console.error).finally(() => setLoading(false));
     api.fleet().then((v: VehicleOption[]) => setVehicleOptions(v)).catch(console.error);
     api.drivers().then((d: DriverOption[]) => setDriverOptions(d)).catch(console.error);
+    api.compliance().then((c: ComplianceRecord[]) => setComplianceRecords(c)).catch(console.error);
   }, []);
+
+  // Worst compliance status for a vehicle, used for table badges and the placement modal warning
+  function complianceSummary(vehicleId: string) {
+    const rec = complianceRecords.find(c => c.vehicleId === vehicleId);
+    if (!rec) return null;
+    const items = [
+      { name: 'RC', ...rec.rc },
+      { name: 'Insurance', ...rec.insurance },
+      { name: 'Fitness', ...rec.fitness },
+      { name: 'Pollution', ...rec.pollution },
+      { name: 'State Permit', ...rec.statePermit },
+      { name: 'National Permit', ...rec.nationalPermit },
+    ];
+    const worst = items.reduce((acc, it) =>
+      COMPLIANCE_STATUS_ORDER.indexOf(it.status) < COMPLIANCE_STATUS_ORDER.indexOf(acc) ? it.status : acc, 'Valid');
+    return { worst, items };
+  }
+
+  function renderComplianceBadge(vehicleId: string) {
+    const summary = vehicleId ? complianceSummary(vehicleId) : null;
+    if (!summary) return <span className="text-xs text-slate-400">—</span>;
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${COMPLIANCE_BADGE_COLORS[summary.worst]}`}>
+        {summary.worst}
+      </span>
+    );
+  }
 
   function notify(msg: string) { setToast(msg); setTimeout(() => setToast(''), 4000); }
   function setF(field: string, value: string | number) { setForm(f => ({ ...f, [field]: value })); }
@@ -538,7 +586,7 @@ function TripsPageInner() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    {['Voucher', 'Route', 'Customer', 'Load Type', 'No. of Vehicles', 'Planned Date', 'Vehicle / Driver', 'Action'].map(h => (
+                    {['Voucher', 'Route', 'Customer', 'Placement Date', 'Total KM', 'Load Type', 'No. of Vehicles', 'Vehicle / Driver', 'Compliance', 'Action'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -552,10 +600,12 @@ function TripsPageInner() {
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{t.customer}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.placementDate || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.distance > 0 ? `${t.distance.toLocaleString()} km` : '—'}</td>
                       <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleLoadType}</td>
                       <td className="px-4 py-3 text-xs text-slate-600 text-center">{t.noOfVehicles}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.plannedDate}</td>
                       <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId || '—'} / {t.driverId || '—'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{renderComplianceBadge(t.vehicleId)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <button onClick={() => openPlacement(t)}
                           className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
@@ -581,7 +631,7 @@ function TripsPageInner() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    {['Voucher', 'Route', 'Customer', 'Vehicle / Driver', 'Placement Date/Time', 'Remarks', 'Action'].map(h => (
+                    {['Voucher', 'Route', 'Customer', 'Placement Date', 'Total KM', 'Vehicle / Driver', 'Placement Date/Time', 'Compliance', 'Remarks', 'Action'].map(h => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -595,8 +645,11 @@ function TripsPageInner() {
                       </td>
                       <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{t.customer}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.placementDate || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.distance > 0 ? `${t.distance.toLocaleString()} km` : '—'}</td>
                       <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId} / {t.driverId}</td>
                       <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.placementDateTime ? t.placementDateTime.replace('T', ' ') : '—'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{renderComplianceBadge(t.vehicleId)}</td>
                       <td className="px-4 py-3 text-xs text-slate-500">{t.placementRemarks || '—'}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <button onClick={() => openPlacement(t)}
@@ -1239,6 +1292,35 @@ function TripsPageInner() {
                   {vehicleOptions.map(v => <option key={v.id} value={v.id}>{v.id} — {v.regNumber} ({v.status})</option>)}
                 </select>
               </Field>
+              {placementForm.vehicleId && (() => {
+                const summary = complianceSummary(placementForm.vehicleId);
+                if (!summary) return null;
+                return (
+                  <div className={`rounded-lg border p-3 space-y-2 ${COMPLIANCE_PANEL_COLORS[summary.worst]}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">Vehicle Compliance Check</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${COMPLIANCE_BADGE_COLORS[summary.worst]}`}>
+                        {summary.worst}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {summary.items.map(it => (
+                        <div key={it.name} className="flex items-center justify-between text-xs bg-white/60 rounded px-2 py-1">
+                          <span className="text-slate-600">{it.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${COMPLIANCE_BADGE_COLORS[it.status]}`}>
+                            {it.status === 'Expired' ? `Expired ${Math.abs(it.daysLeft)}d ago` : `${it.expiry} (${it.daysLeft}d)`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {summary.worst !== 'Valid' && (
+                      <p className="text-xs text-slate-600 pt-1">
+                        ⚠ This vehicle has compliance items that are {summary.worst.toLowerCase()} — resolve before dispatch to avoid issues during the trip.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
               <Field label="Driver *">
                 <select required className={SELECT} value={placementForm.driverId}
                   onChange={e => setPlacementForm(f => ({ ...f, driverId: e.target.value }))}>
