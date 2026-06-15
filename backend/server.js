@@ -342,6 +342,41 @@ app.patch('/api/trips/:id/reject', auth, requireRole('Fleet Manager'), async (re
   res.json({ success: true, trip });
 });
 
+// Vehicle placement and CN fields aren't in the Prisma schema yet, so they live
+// in-memory only (like other mock data) until a migration adds them.
+app.patch('/api/trips/:id/placement', auth, requireRole('Fleet Manager', 'Dispatcher'), (req, res) => {
+  const trip = trips.find(t => t.id === req.params.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  const { vehicleId, driverId, placementDateTime, placementRemarks } = req.body;
+  if (!vehicleId || !driverId || !placementDateTime) {
+    return res.status(400).json({ error: 'Vehicle, driver and placement date/time are required' });
+  }
+  trip.vehicleId = vehicleId;
+  trip.driverId = driverId;
+  trip.placementDateTime = placementDateTime;
+  trip.placementRemarks = placementRemarks || '';
+  trip.placementConfirmed = true;
+  logAudit(req, 'trip.placement', { tripId: trip.id, vehicleId, driverId, placementDateTime });
+  res.json({ success: true, trip });
+});
+
+app.patch('/api/trips/:id/cn', auth, requireRole('Fleet Manager', 'Dispatcher'), (req, res) => {
+  const trip = trips.find(t => t.id === req.params.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  if (!trip.placementConfirmed) return res.status(400).json({ error: 'Vehicle placement must be confirmed before generating a CN' });
+  const { consigneeName, consigneeAddress, consigneeContact } = req.body;
+  if (!consigneeName || !consigneeAddress) return res.status(400).json({ error: 'Consignee name and address are required' });
+  trip.consigneeName = consigneeName;
+  trip.consigneeAddress = consigneeAddress;
+  trip.consigneeContact = consigneeContact || '';
+  if (!trip.cnNumber) {
+    trip.cnNumber = 'CN' + trip.id.slice(1);
+    trip.cnDate = new Date().toISOString().split('T')[0];
+  }
+  logAudit(req, 'trip.cn_generate', { tripId: trip.id, cnNumber: trip.cnNumber });
+  res.json({ success: true, trip });
+});
+
 // Fuel
 app.get('/api/fuel', auth, (req, res) => res.json(fuelEntries));
 app.get('/api/fuel/vehicle/:vehicleId', auth, (req, res) => res.json(fuelEntries.filter(f => f.vehicleId === req.params.vehicleId)));
@@ -966,7 +1001,7 @@ let chatMessages = loadMessages();
 
 const CHANNELS = [
   { id: 'general',     name: 'General',       icon: '💬', description: 'Company-wide announcements' },
-  { id: 'fleet',       name: 'Fleet & GPS',    icon: '🚛', description: 'Vehicle and GPS updates' },
+  { id: 'fleet',       name: 'Vehicle Management', icon: '🚛', description: 'Vehicle and GPS updates' },
   { id: 'accounts',    name: 'Accounts',       icon: '💰', description: 'Finance and billing' },
   { id: 'drivers',     name: 'Drivers',        icon: '👤', description: 'Driver management' },
   { id: 'maintenance', name: 'Maintenance',    icon: '🔧', description: 'Workshop and repairs' },

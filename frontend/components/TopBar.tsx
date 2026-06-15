@@ -3,7 +3,7 @@ import { usePathname } from 'next/navigation';
 
 const titles: Record<string, string> = {
   '/dashboard': 'Dashboard',
-  '/fleet': 'Fleet & GPS Tracking',
+  '/fleet': 'Vehicle Management',
   '/drivers': 'Driver Management',
   '/trips': 'Trip Management',
   '/fuel': 'Fuel Management',

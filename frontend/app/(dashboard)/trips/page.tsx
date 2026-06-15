@@ -26,7 +26,16 @@ interface Trip {
   plannedDate: string; eta: string; distance: number; approxTimeHrs: number;
   actualKm: number; tollCost: number; fuelCost: number; revenue: number;
   pod: boolean; delay: number;
+  placementConfirmed: boolean; placementDateTime: string; placementRemarks: string;
+  cnNumber: string; cnDate: string;
+  consigneeName: string; consigneeAddress: string; consigneeContact: string;
 }
+
+interface VehicleOption { id: string; regNumber: string; status: string; }
+interface DriverOption { id: string; name: string; status: string; }
+
+const EMPTY_PLACEMENT = () => ({ vehicleId: '', driverId: '', placementDateTime: '', placementRemarks: '' });
+const EMPTY_CN = () => ({ consigneeName: '', consigneeAddress: '', consigneeContact: '' });
 
 const STATUS_COLORS: Record<string, string> = {
   'In Transit': 'bg-blue-100 text-blue-700',
@@ -109,10 +118,28 @@ function TripsPageInner() {
   const [rejectModal, setRejectModal]   = useState<Trip | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Tabs
+  const [activeTab, setActiveTab] = useState<'indent' | 'placement' | 'cn'>('indent');
+  const [vehicleOptions, setVehicleOptions] = useState<VehicleOption[]>([]);
+  const [driverOptions, setDriverOptions]   = useState<DriverOption[]>([]);
+
+  // Vehicle Placement
+  const [placementModal, setPlacementModal]   = useState<Trip | null>(null);
+  const [placementForm, setPlacementForm]     = useState(EMPTY_PLACEMENT());
+  const [placementSaving, setPlacementSaving] = useState(false);
+
+  // Consignment Note
+  const [cnModal, setCnModal]   = useState<Trip | null>(null);
+  const [cnForm, setCnForm]     = useState(EMPTY_CN());
+  const [cnSaving, setCnSaving] = useState(false);
+  const [cnView, setCnView]     = useState<Trip | null>(null);
+
   const { preset, setPreset, fromYM, setFromYM, toYM, setToYM, effectiveFrom, effectiveTo, inRange } = useDateRange();
 
   useEffect(() => {
     api.trips().then(setTrips).catch(console.error).finally(() => setLoading(false));
+    api.fleet().then((v: VehicleOption[]) => setVehicleOptions(v)).catch(console.error);
+    api.drivers().then((d: DriverOption[]) => setDriverOptions(d)).catch(console.error);
   }, []);
 
   function notify(msg: string) { setToast(msg); setTimeout(() => setToast(''), 4000); }
@@ -248,6 +275,48 @@ function TripsPageInner() {
     setEditSaving(false);
   }
 
+  function openPlacement(trip: Trip) {
+    setPlacementForm({
+      vehicleId: trip.vehicleId || '', driverId: trip.driverId || '',
+      placementDateTime: trip.placementDateTime || '', placementRemarks: trip.placementRemarks || '',
+    });
+    setPlacementModal(trip);
+  }
+
+  async function handlePlacementSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!placementModal) return;
+    setPlacementSaving(true);
+    try {
+      const res = await api.confirmPlacement(placementModal.id, placementForm);
+      setTrips(t => t.map(x => x.id === placementModal.id ? res.trip : x));
+      setPlacementModal(null);
+      notify(`Vehicle placement confirmed for ${placementModal.voucherNo}`);
+    } catch { notify('Failed to confirm placement'); }
+    setPlacementSaving(false);
+  }
+
+  function openCnGenerate(trip: Trip) {
+    setCnForm({
+      consigneeName: trip.consigneeName || '', consigneeAddress: trip.consigneeAddress || '',
+      consigneeContact: trip.consigneeContact || '',
+    });
+    setCnModal(trip);
+  }
+
+  async function handleCnSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!cnModal) return;
+    setCnSaving(true);
+    try {
+      const res = await api.generateCN(cnModal.id, cnForm);
+      setTrips(t => t.map(x => x.id === cnModal.id ? res.trip : x));
+      setCnModal(null);
+      notify(`Consignment Note ${res.trip.cnNumber} generated for ${cnModal.voucherNo}`);
+    } catch { notify('Failed to generate Consignment Note'); }
+    setCnSaving(false);
+  }
+
   const statuses = ['All', 'In Transit', 'Planned', 'Delayed', 'Completed', 'Cancelled'];
   const pending  = trips.filter(t => t.approvalStatus === 'Pending Approval');
   const filtered = trips.filter(t => {
@@ -260,6 +329,14 @@ function TripsPageInner() {
   });
   const counts = Object.fromEntries(statuses.map(s => [s, s === 'All' ? filtered.length : filtered.filter(t => t.status === s).length]));
 
+  // Vehicle Placement tab
+  const placementPending = trips.filter(t => t.approvalStatus === 'Approved' && !t.placementConfirmed);
+  const placementDone     = trips.filter(t => t.approvalStatus === 'Approved' && t.placementConfirmed);
+
+  // CN tab
+  const cnPending   = trips.filter(t => t.placementConfirmed && !t.cnNumber);
+  const cnGenerated = trips.filter(t => t.placementConfirmed && t.cnNumber);
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
 
   return (
@@ -268,6 +345,30 @@ function TripsPageInner() {
         <div className="fixed top-5 right-5 z-50 bg-slate-800 text-white px-4 py-2.5 rounded-lg shadow-xl text-sm">{toast}</div>
       )}
 
+      {/* ── Tabs ── */}
+      <div className="flex items-center gap-1 border-b border-slate-200">
+        {([
+          ['indent', 'Indent Creation'],
+          ['placement', 'Vehicle Placement'],
+          ['cn', 'CN (Consignment Note)'],
+        ] as const).map(([key, label]) => (
+          <button key={key} onClick={() => setActiveTab(key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              activeTab === key ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'
+            }`}>
+            {label}
+            {key === 'placement' && placementPending.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">{placementPending.length}</span>
+            )}
+            {key === 'cn' && cnPending.length > 0 && (
+              <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">{cnPending.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'indent' && (
+      <>
       <DateRangeBar preset={preset} setPreset={setPreset} fromYM={fromYM} setFromYM={setFromYM} toYM={toYM} setToYM={setToYM} effectiveFrom={effectiveFrom} effectiveTo={effectiveTo} count={filtered.length} total={trips.filter(t => t.approvalStatus !== 'Pending Approval' && t.approvalStatus !== 'Rejected').length} />
 
       {/* ── Pending Approval Banner (managers only) ── */}
@@ -422,6 +523,182 @@ function TripsPageInner() {
           )}
         </div>
       </div>
+      </>
+      )}
+
+      {/* ── Vehicle Placement Tab ── */}
+      {activeTab === 'placement' && (
+        <div className="space-y-5">
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Pending Placement</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Approved indents awaiting vehicle & driver assignment</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    {['Voucher', 'Route', 'Customer', 'Load Type', 'No. of Vehicles', 'Planned Date', 'Vehicle / Driver', 'Action'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {placementPending.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-xs font-bold text-slate-700">{t.voucherNo}</div>
+                        <div className="text-xs text-slate-400">{t.plannedDate}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{t.customer}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleLoadType}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 text-center">{t.noOfVehicles}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.plannedDate}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId || '—'} / {t.driverId || '—'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button onClick={() => openPlacement(t)}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
+                          Assign & Confirm Placement
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {placementPending.length === 0 && (
+                <div className="text-center text-slate-400 text-sm py-10">No indents awaiting vehicle placement.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Placed Vehicles</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Vehicle & driver confirmed for these indents</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    {['Voucher', 'Route', 'Customer', 'Vehicle / Driver', 'Placement Date/Time', 'Remarks', 'Action'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {placementDone.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-xs font-bold text-slate-700">{t.voucherNo}</div>
+                        <div className="text-xs text-slate-400">{t.plannedDate}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{t.customer}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId} / {t.driverId}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.placementDateTime ? t.placementDateTime.replace('T', ' ') : '—'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-500">{t.placementRemarks || '—'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button onClick={() => openPlacement(t)}
+                          className="px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50">
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {placementDone.length === 0 && (
+                <div className="text-center text-slate-400 text-sm py-10">No vehicles placed yet.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CN (Consignment Note) Tab ── */}
+      {activeTab === 'cn' && (
+        <div className="space-y-5">
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Pending CN Generation</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Vehicles placed — Consignment Note not yet generated</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    {['Voucher', 'Route', 'Customer', 'Vehicle / Driver', 'Content', 'Action'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {cnPending.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-xs font-bold text-slate-700">{t.voucherNo}</div>
+                        <div className="text-xs text-slate-400">{t.plannedDate}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{t.customer}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId} / {t.driverId}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600">{t.content || t.cargo}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button onClick={() => openCnGenerate(t)}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
+                          Generate CN
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {cnPending.length === 0 && (
+                <div className="text-center text-slate-400 text-sm py-10">Nothing pending — every placed vehicle has a CN.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="text-sm font-bold text-slate-800">Generated Consignment Notes</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Lorry receipts issued for placed vehicles</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    {['CN No.', 'CN Date', 'Voucher', 'Route', 'Consignor', 'Consignee', 'Vehicle / Driver', 'Action'].map(h => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {cnGenerated.map(t => (
+                    <tr key={t.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">{t.cnNumber}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.cnDate}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{t.voucherNo}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.customer}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.consigneeName || '—'}</td>
+                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId} / {t.driverId}</td>
+                      <td className="px-4 py-3 whitespace-nowrap flex items-center gap-2">
+                        <button onClick={() => setCnView(t)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">View / Print</button>
+                        <button onClick={() => openCnGenerate(t)} className="text-slate-500 hover:text-slate-700 text-xs font-medium border border-slate-200 px-2 py-0.5 rounded">Edit Consignee</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {cnGenerated.length === 0 && (
+                <div className="text-center text-slate-400 text-sm py-10">No Consignment Notes generated yet.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Create Indent Modal ── */}
       {showAdd && (
@@ -936,6 +1213,186 @@ function TripsPageInner() {
                   <div className="font-medium text-slate-800 text-sm">{v}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Vehicle Placement Modal ── */}
+      {placementModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Confirm Vehicle Placement — {placementModal.voucherNo}</h3>
+                <p className="text-xs text-slate-400">{placementModal.origin} → {placementModal.destination} · {placementModal.customer}</p>
+              </div>
+              <button onClick={() => setPlacementModal(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handlePlacementSave} className="p-6 space-y-4">
+              <Field label="Vehicle *">
+                <select required className={SELECT} value={placementForm.vehicleId}
+                  onChange={e => setPlacementForm(f => ({ ...f, vehicleId: e.target.value }))}>
+                  <option value="">Select vehicle</option>
+                  {vehicleOptions.map(v => <option key={v.id} value={v.id}>{v.id} — {v.regNumber} ({v.status})</option>)}
+                </select>
+              </Field>
+              <Field label="Driver *">
+                <select required className={SELECT} value={placementForm.driverId}
+                  onChange={e => setPlacementForm(f => ({ ...f, driverId: e.target.value }))}>
+                  <option value="">Select driver</option>
+                  {driverOptions.map(d => <option key={d.id} value={d.id}>{d.id} — {d.name} ({d.status})</option>)}
+                </select>
+              </Field>
+              <Field label="Placement Date & Time *">
+                <input required type="datetime-local" className={INPUT} value={placementForm.placementDateTime}
+                  onChange={e => setPlacementForm(f => ({ ...f, placementDateTime: e.target.value }))} />
+              </Field>
+              <Field label="Remarks">
+                <textarea rows={2} className={INPUT} placeholder="Optional notes for this placement"
+                  value={placementForm.placementRemarks} onChange={e => setPlacementForm(f => ({ ...f, placementRemarks: e.target.value }))} />
+              </Field>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setPlacementModal(null)}
+                  className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={placementSaving}
+                  className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+                  {placementSaving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {placementSaving ? 'Saving…' : 'Confirm Placement'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Generate CN Modal ── */}
+      {cnModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-bold text-slate-800">{cnModal.cnNumber ? 'Edit Consignee' : 'Generate Consignment Note'} — {cnModal.voucherNo}</h3>
+                <p className="text-xs text-slate-400">{cnModal.origin} → {cnModal.destination} · {cnModal.customer}</p>
+              </div>
+              <button onClick={() => setCnModal(null)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <form onSubmit={handleCnSave} className="p-6 space-y-4">
+              <Field label="Consignee Name *">
+                <input required className={INPUT} placeholder="Receiving party name" value={cnForm.consigneeName}
+                  onChange={e => setCnForm(f => ({ ...f, consigneeName: e.target.value }))} />
+              </Field>
+              <Field label="Consignee Address *">
+                <input required className={INPUT} placeholder="Delivery address" value={cnForm.consigneeAddress}
+                  onChange={e => setCnForm(f => ({ ...f, consigneeAddress: e.target.value }))} />
+              </Field>
+              <Field label="Consignee Contact No.">
+                <input className={INPUT} placeholder="9800000000" maxLength={10} value={cnForm.consigneeContact}
+                  onChange={e => setCnForm(f => ({ ...f, consigneeContact: e.target.value }))} />
+              </Field>
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                <button type="button" onClick={() => setCnModal(null)}
+                  className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={cnSaving}
+                  className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+                  {cnSaving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {cnSaving ? 'Saving…' : (cnModal.cnNumber ? 'Save Changes' : 'Generate CN')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── CN View / Print Modal ── */}
+      {cnView && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:bg-white print:p-0 print:static">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto print:max-w-full print:max-h-none print:shadow-none print:rounded-none print:overflow-visible">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10 print:hidden">
+              <h3 className="text-base font-bold text-slate-800">Consignment Note — {cnView.cnNumber}</h3>
+              <div className="flex items-center gap-2">
+                <button onClick={() => window.print()} className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">Print</button>
+                <button onClick={() => setCnView(null)} className="text-slate-400 hover:text-slate-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8 space-y-6 text-sm">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-800">Nexantra Technologies</h2>
+                  <p className="text-xs text-slate-500">Consignment Note / Lorry Receipt</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-slate-500">CN No.</div>
+                  <div className="font-mono font-bold text-blue-700">{cnView.cnNumber}</div>
+                  <div className="text-xs text-slate-500 mt-1">Date</div>
+                  <div className="font-medium text-slate-800">{cnView.cnDate}</div>
+                </div>
+              </div>
+
+              {/* Consignor / Consignee */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="border border-slate-200 rounded-lg p-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Consignor</div>
+                  <div className="font-medium text-slate-800">{cnView.customer}</div>
+                  <div className="text-xs text-slate-500">{cnView.address}</div>
+                  <div className="text-xs text-slate-500 mt-1">{cnView.contactPerson} · {cnView.contactNo}</div>
+                </div>
+                <div className="border border-slate-200 rounded-lg p-3">
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Consignee</div>
+                  <div className="font-medium text-slate-800">{cnView.consigneeName || '—'}</div>
+                  <div className="text-xs text-slate-500">{cnView.consigneeAddress || '—'}</div>
+                  <div className="text-xs text-slate-500 mt-1">{cnView.consigneeContact || '—'}</div>
+                </div>
+              </div>
+
+              {/* Route & Vehicle */}
+              <div className="border border-slate-200 rounded-lg p-3">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Route & Vehicle</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><span className="text-xs text-slate-500">From</span><div className="font-medium text-slate-800">{cnView.origin}</div></div>
+                  <div><span className="text-xs text-slate-500">To</span><div className="font-medium text-slate-800">{cnView.destination}</div></div>
+                  <div><span className="text-xs text-slate-500">Vehicle No.</span><div className="font-medium text-slate-800">{cnView.vehicleId}</div></div>
+                  <div><span className="text-xs text-slate-500">Driver</span><div className="font-medium text-slate-800">{cnView.driverId}</div></div>
+                  <div><span className="text-xs text-slate-500">Placement Date/Time</span><div className="font-medium text-slate-800">{cnView.placementDateTime ? cnView.placementDateTime.replace('T', ' ') : '—'}</div></div>
+                  <div><span className="text-xs text-slate-500">Distance</span><div className="font-medium text-slate-800">{cnView.distance ? `${cnView.distance.toLocaleString()} km` : '—'}</div></div>
+                </div>
+              </div>
+
+              {/* Goods */}
+              <div className="border border-slate-200 rounded-lg p-3">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Goods Description</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><span className="text-xs text-slate-500">Content</span><div className="font-medium text-slate-800">{cnView.content || cnView.cargo}</div></div>
+                  <div><span className="text-xs text-slate-500">Weight</span><div className="font-medium text-slate-800">{cnView.weight} Tons</div></div>
+                  <div><span className="text-xs text-slate-500">Packages</span><div className="font-medium text-slate-800">{cnView.packages}</div></div>
+                </div>
+              </div>
+
+              {/* Freight */}
+              <div className="border border-slate-200 rounded-lg p-3">
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Freight & Charges</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><span className="text-xs text-slate-500">Freight</span><div className="font-medium text-slate-800">₹{(cnView.freight || 0).toLocaleString('en-IN')}</div></div>
+                  <div><span className="text-xs text-slate-500">Payment Terms</span><div className="font-medium text-slate-800">{cnView.paymentTerms}</div></div>
+                  <div><span className="text-xs text-slate-500">Total</span><div className="font-bold text-slate-800">₹{(cnView.total || 0).toLocaleString('en-IN')}</div></div>
+                  <div><span className="text-xs text-slate-500">Advance</span><div className="font-medium text-slate-800">₹{(cnView.advance || 0).toLocaleString('en-IN')}</div></div>
+                  <div><span className="text-xs text-slate-500">Balance</span><div className="font-medium text-blue-700">₹{(cnView.balance || 0).toLocaleString('en-IN')}</div></div>
+                </div>
+              </div>
+
+              {/* Signatures */}
+              <div className="grid grid-cols-2 gap-4 pt-8">
+                <div className="border-t border-slate-300 pt-2 text-center text-xs text-slate-500">Consignor Signature</div>
+                <div className="border-t border-slate-300 pt-2 text-center text-xs text-slate-500">Carrier / Driver Signature</div>
+              </div>
             </div>
           </div>
         </div>
