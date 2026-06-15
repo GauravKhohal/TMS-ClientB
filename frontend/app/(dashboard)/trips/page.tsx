@@ -65,6 +65,12 @@ const STATUS_COLORS: Record<string, string> = {
   'Pending Approval': 'bg-yellow-100 text-yellow-700',
 };
 
+const APPROVAL_STATUS_COLORS: Record<string, string> = {
+  'Pending Approval': 'bg-yellow-100 text-yellow-700',
+  'Approved': 'bg-green-100 text-green-700',
+  'Rejected': 'bg-red-100 text-red-700',
+};
+
 const INPUT  = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500';
 const SELECT = INPUT + ' bg-white';
 
@@ -368,7 +374,6 @@ function TripsPageInner() {
   const statuses = ['All', 'In Transit', 'Planned', 'Delayed', 'Completed', 'Cancelled'];
   const pending  = trips.filter(t => t.approvalStatus === 'Pending Approval');
   const filtered = trips.filter(t => {
-    if (t.approvalStatus === 'Pending Approval' || t.approvalStatus === 'Rejected') return false;
     const matchStatus = filter === 'All' || t.status === filter;
     const matchDate   = inRange(t.plannedDate);
     const matchSearch = t.id.includes(search) || t.customer?.toLowerCase().includes(search.toLowerCase()) ||
@@ -417,7 +422,7 @@ function TripsPageInner() {
 
       {activeTab === 'indent' && (
       <>
-      <DateRangeBar preset={preset} setPreset={setPreset} fromYM={fromYM} setFromYM={setFromYM} toYM={toYM} setToYM={setToYM} effectiveFrom={effectiveFrom} effectiveTo={effectiveTo} count={filtered.length} total={trips.filter(t => t.approvalStatus !== 'Pending Approval' && t.approvalStatus !== 'Rejected').length} />
+      <DateRangeBar preset={preset} setPreset={setPreset} fromYM={fromYM} setFromYM={setFromYM} toYM={toYM} setToYM={setToYM} effectiveFrom={effectiveFrom} effectiveTo={effectiveTo} count={filtered.length} total={trips.length} />
 
       {/* ── Pending Approval Banner (managers only) ── */}
       {pending.length > 0 && (
@@ -493,7 +498,7 @@ function TripsPageInner() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-100">
-                {['Voucher', 'Route & Stops', 'Customer', 'Cargo', 'Status', 'Vehicle', 'Distance / ETA', 'Freight', 'Loading Chg.', 'Unloading Chg.', 'Other Chg.', 'Total', 'Advance', 'Balance', 'POD', 'Actions'].map(h => (
+                {['Voucher', 'Route & Stops', 'Customer', 'Cargo', 'Status', 'Approval Status', 'Vehicle', 'Distance / ETA', 'Freight', 'Loading Chg.', 'Unloading Chg.', 'Other Chg.', 'Total', 'Advance', 'Balance', 'POD', 'Actions'].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -524,6 +529,12 @@ function TripsPageInner() {
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLORS[t.status] || 'bg-slate-100 text-slate-600'}`}>{t.status}</span>
                     {t.delay > 0 && <div className="text-xs text-red-500 mt-0.5">{t.delay}h delay</div>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${APPROVAL_STATUS_COLORS[t.approvalStatus] || 'bg-slate-100 text-slate-600'}`}>{t.approvalStatus}</span>
+                    {t.approvalStatus === 'Rejected' && t.rejectionReason && (
+                      <div className="text-xs text-red-500 mt-0.5 max-w-[10rem]" title={t.rejectionReason}>{t.rejectionReason}</div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId || '—'} / {t.driverId || '—'}</td>
                   <td className="px-4 py-3">
