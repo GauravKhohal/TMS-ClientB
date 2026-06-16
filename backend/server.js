@@ -44,17 +44,27 @@ async function loadFromDatabase() {
     prisma.complianceRecord.findMany(),
     prisma.consignment.findMany({ orderBy: { createdAt: 'desc' } }),
   ]);
-  const vehicleExtras = new Map(vehicles.map(v => [v.id, pickFields(v, VEHICLE_MOCK_ONLY_FIELDS)]));
-  const driverExtras = new Map(drivers.map(d => [d.id, pickFields(d, DRIVER_MOCK_ONLY_FIELDS)]));
-
-  if (dbUsers.length)    users.splice(0, users.length, ...dbUsers);
-  if (dbVehicles.length) vehicles.splice(0, vehicles.length, ...dbVehicles.map(({ driverId, ...v }) => ({ ...v, driver: driverId, ...vehicleExtras.get(v.id) })));
-  if (dbDrivers.length)  drivers.splice(0, drivers.length, ...dbDrivers.map(d => ({ ...d, ...driverExtras.get(d.id) })));
-  if (dbTrips.length)    trips.splice(0, trips.length, ...dbTrips);
+  // DB is always authoritative — no fallback to mock data
+  users.splice(0, users.length, ...dbUsers);
+  vehicles.splice(0, vehicles.length, ...dbVehicles.map(({ driverId, ...v }) => ({ ...v, driver: driverId })));
+  drivers.splice(0, drivers.length, ...dbDrivers);
+  trips.splice(0, trips.length, ...dbTrips);
   fuelEntries.splice(0, fuelEntries.length, ...dbFuelEntries);
   maintenanceRecords.splice(0, maintenanceRecords.length, ...dbMaintenanceRecords);
   complianceRecords.splice(0, complianceRecords.length, ...dbComplianceRecords);
   consignments.splice(0, consignments.length, ...dbConsignments);
+
+  // Auto-seed admin on first boot so login works even on a fresh database
+  if (users.length === 0) {
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash('tms@1234', 10);
+    const admin = { id: 'U001', name: 'Admin User', email: 'admin@tms.in', password: hash, role: 'Super Admin', status: 'Active', lastLogin: null, permissions: ['all'] };
+    users.push(admin);
+    try { await prisma.user.upsert({ where: { email: admin.email }, update: {}, create: admin }); }
+    catch (e) { console.error('Admin seed failed:', e.message); }
+    console.log('First boot: seeded default admin user (admin@tms.in)');
+  }
+
   console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records, ${consignments.length} consignments`);
 }
 

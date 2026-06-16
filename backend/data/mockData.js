@@ -1,105 +1,44 @@
-const vehicles = [
-  { id: 'V001', regNumber: 'MH-12-AB-1234', make: 'Tata', model: 'Prima 4028.S', year: 2021, category: 'Heavy', ownershipType: 'Own', capacity: '25 Ton', fuelType: 'Diesel', status: 'Running', driver: 'D001', odometer: 145230, location: { lat: 18.52, lng: 73.85 }, speed: 62, lastService: '2026-03-15', insurance: '2027-01-10', fitness: '2026-11-20', permit: '2026-09-30', utilization: 78, purchasedAgency: 'Tata Motors Pune', purchaseDate: '2021-07-01', vehicleValue: 2800000, emiEnabled: 'Yes', monthlyEMI: 52000, loanBank: 'HDFC Bank', loanAmount: 2200000, loanTenureMonths: 60, loanStartDate: '2021-07-01', emisPaid: 59, emiHistory: [], rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V002', regNumber: 'MH-12-CD-5678', make: 'Ashok Leyland', model: 'Boss 1415', year: 2020, category: 'Medium', ownershipType: 'Own', capacity: '15 Ton', fuelType: 'Diesel', status: 'Idle', driver: 'D002', odometer: 98450, location: { lat: 18.60, lng: 73.78 }, speed: 0, lastService: '2026-02-20', insurance: '2026-08-15', fitness: '2026-07-10', permit: '2026-12-31', utilization: 54, purchasedAgency: 'Ashok Leyland Nashik', purchaseDate: '2020-03-15', vehicleValue: 1850000, emiEnabled: 'No', monthlyEMI: 0, loanBank: '', rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V003', regNumber: 'GJ-01-EF-9012', make: 'Mahindra', model: 'Blazo X 35', year: 2022, category: 'Heavy', ownershipType: 'Leased', capacity: '35 Ton', fuelType: 'Diesel', status: 'Running', driver: 'D003', odometer: 67800, location: { lat: 23.02, lng: 72.57 }, speed: 78, lastService: '2026-04-01', insurance: '2027-03-20', fitness: '2027-01-15', permit: '2027-06-30', utilization: 88, purchasedAgency: 'Mahindra Trucks Ahmedabad', purchaseDate: '2022-05-10', vehicleValue: 3500000, emiEnabled: 'No', monthlyEMI: 0, loanBank: '', rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V004', regNumber: 'DL-01-GH-3456', make: 'Eicher', model: 'Pro 6025', year: 2019, category: 'Medium', ownershipType: 'Own', capacity: '20 Ton', fuelType: 'Diesel', status: 'Maintenance', driver: null, odometer: 210000, location: { lat: 28.61, lng: 77.20 }, speed: 0, lastService: '2025-12-10', insurance: '2026-06-01', fitness: '2026-05-28', permit: '2026-08-15', utilization: 45, purchasedAgency: 'Eicher Motors Delhi', purchaseDate: '2020-01-01', vehicleValue: 2200000, emiEnabled: 'Yes', monthlyEMI: 38000, loanBank: 'SBI', loanAmount: 1600000, loanTenureMonths: 48, loanStartDate: '2020-01-01', emisPaid: 48, emiHistory: [], rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V005', regNumber: 'KA-09-IJ-7890', make: 'Volvo', model: 'FH16', year: 2023, category: 'Super Heavy', ownershipType: 'Own', capacity: '40 Ton', fuelType: 'Diesel', status: 'Running', driver: 'D005', odometer: 32100, location: { lat: 12.97, lng: 77.59 }, speed: 85, lastService: '2026-05-01', insurance: '2028-02-10', fitness: '2027-11-30', permit: '2027-04-20', utilization: 92, purchasedAgency: 'Volvo Trucks India Bangalore', purchaseDate: '2023-08-01', vehicleValue: 8500000, emiEnabled: 'Yes', monthlyEMI: 145000, loanBank: 'ICICI Bank', loanAmount: 6500000, loanTenureMonths: 60, loanStartDate: '2023-08-01', emisPaid: 33, emiHistory: [], rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V006', regNumber: 'TN-01-KL-2345', make: 'Tata', model: 'Ultra 3525', year: 2021, category: 'Heavy', ownershipType: 'Own', capacity: '30 Ton', fuelType: 'Diesel', status: 'Idle', driver: 'D006', odometer: 125000, location: { lat: 13.08, lng: 80.27 }, speed: 0, lastService: '2026-01-15', insurance: '2026-09-20', fitness: '2026-10-05', permit: '2026-11-30', utilization: 61, purchasedAgency: 'Tata Motors Chennai', purchaseDate: '2021-04-01', vehicleValue: 3200000, emiEnabled: 'Yes', monthlyEMI: 58000, loanBank: 'Kotak Mahindra Bank', loanAmount: 2400000, loanTenureMonths: 48, loanStartDate: '2021-04-01', emisPaid: 48, emiHistory: [], rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V007', regNumber: 'RJ-14-MN-6789', make: 'Ashok Leyland', model: 'Captain 3518', year: 2020, category: 'Heavy', ownershipType: 'Leased', capacity: '32 Ton', fuelType: 'Diesel', status: 'Running', driver: 'D007', odometer: 178500, location: { lat: 26.91, lng: 75.78 }, speed: 55, lastService: '2026-03-05', insurance: '2026-12-01', fitness: '2026-08-20', permit: '2026-07-15', utilization: 74, purchasedAgency: 'Ashok Leyland Jaipur', purchaseDate: '2020-09-20', vehicleValue: 3000000, emiEnabled: 'No', monthlyEMI: 0, loanBank: '', rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-  { id: 'V008', regNumber: 'UP-80-OP-1122', make: 'Force', model: 'T1 4225', year: 2022, category: 'Medium', ownershipType: 'Own', capacity: '18 Ton', fuelType: 'Diesel', status: 'Breakdown', driver: 'D008', odometer: 89300, location: { lat: 26.84, lng: 80.94 }, speed: 0, lastService: '2026-02-28', insurance: '2027-01-30', fitness: '2026-12-10', permit: '2026-10-05', utilization: 38, purchasedAgency: 'Force Motors Lucknow', purchaseDate: '2022-10-01', vehicleValue: 2000000, emiEnabled: 'Yes', monthlyEMI: 35000, loanBank: 'Punjab National Bank', loanAmount: 1500000, loanTenureMonths: 48, loanStartDate: '2022-10-01', emisPaid: 43, emiHistory: [], rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan', details: null } },
-];
+// All arrays are empty — data is loaded from Postgres at boot via loadFromDatabase() in server.js.
+// Vehicles, drivers, trips, and users are DB-authoritative; add records through the UI.
+// An admin user is auto-seeded to the DB on first boot if the users table is empty.
 
-const drivers = [
-  { id: 'D001', name: 'Ramesh Kumar', phone: '9876543210', altPhone: '8765432109', dob: '1985-04-12', address: 'Pune, Maharashtra', dlNumber: 'MH-12-20150045678', licenseCategory: 'HMV', licenseExpiry: '2028-04-11', experience: 12, emergencyContact: '9988776655', status: 'Active', assignedVehicle: 'V001', fuelScore: 82, safetyScore: 88, onTimeDelivery: 91, customerRating: 4.3, totalTrips: 342, totalKm: 145230, violations: 3, salary: 28000, advance: 5000, attendance: 96, aadhaarNumber: '234156789012', panNumber: 'AABPK1234Q', supervisorName: 'Self', supervisorHistory: [{ supervisor: 'Self', fromMonth: '2024-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'State Bank of India', accountNumber: '32145678901', ifsc: 'SBIN0001234', upiId: 'ramesh.kumar@upi' } },
-  { id: 'D002', name: 'Suresh Patil', phone: '9765432101', altPhone: '', dob: '1980-08-23', address: 'Nashik, Maharashtra', dlNumber: 'MH-15-20120023456', licenseCategory: 'HMV', licenseExpiry: '2027-08-22', experience: 15, emergencyContact: '9977665544', status: 'Active', assignedVehicle: 'V002', fuelScore: 76, safetyScore: 72, onTimeDelivery: 84, customerRating: 4.0, totalTrips: 289, totalKm: 98450, violations: 7, salary: 25000, advance: 0, attendance: 92, aadhaarNumber: '345678901234', panNumber: 'BBSPD5678R', supervisorName: 'Ramesh Kumar', supervisorHistory: [{ supervisor: 'Ramesh Kumar', fromMonth: '2024-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'HDFC Bank', accountNumber: '50100234567890', ifsc: 'HDFC0000456', upiId: 'suresh.patil@ybl' } },
-  { id: 'D003', name: 'Mahesh Sharma', phone: '9654321012', altPhone: '8543210987', dob: '1990-01-15', address: 'Ahmedabad, Gujarat', dlNumber: 'GJ-01-20180034567', licenseCategory: 'HMV', licenseExpiry: '2028-01-14', experience: 8, emergencyContact: '9966554433', status: 'Active', assignedVehicle: 'V003', fuelScore: 91, safetyScore: 94, onTimeDelivery: 96, customerRating: 4.7, totalTrips: 198, totalKm: 67800, violations: 1, salary: 32000, advance: 0, attendance: 99, aadhaarNumber: '456789012345', panNumber: 'CCMSH9012S', supervisorName: 'Self', supervisorHistory: [{ supervisor: 'Self', fromMonth: '2024-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'ICICI Bank', accountNumber: '001234567890', ifsc: 'ICIC0000789', upiId: 'mahesh.sharma@paytm' } },
-  { id: 'D004', name: 'Ravi Verma', phone: '9543210923', altPhone: '', dob: '1978-11-30', address: 'Delhi', dlNumber: 'DL-01-20100012345', licenseCategory: 'HMV', licenseExpiry: '2026-11-29', experience: 18, emergencyContact: '9955443322', status: 'Leave', assignedVehicle: 'V004', fuelScore: 68, safetyScore: 65, onTimeDelivery: 78, customerRating: 3.8, totalTrips: 521, totalKm: 210000, violations: 12, salary: 26000, advance: 8000, attendance: 88, aadhaarNumber: '567890123456', panNumber: 'DDRVR3456T', supervisorName: 'Mahesh Sharma', supervisorHistory: [{ supervisor: 'Ramesh Kumar', fromMonth: '2024-01', toMonth: '2025-12' }, { supervisor: 'Mahesh Sharma', fromMonth: '2026-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'Punjab National Bank', accountNumber: '0123456789012', ifsc: 'PUNB0123400', upiId: '' } },
-  { id: 'D005', name: 'Vikram Singh', phone: '9432109834', altPhone: '8321098765', dob: '1992-06-20', address: 'Bangalore, Karnataka', dlNumber: 'KA-09-20200056789', licenseCategory: 'HMV', licenseExpiry: '2030-06-19', experience: 6, emergencyContact: '9944332211', status: 'Active', assignedVehicle: 'V005', fuelScore: 95, safetyScore: 97, onTimeDelivery: 98, customerRating: 4.9, totalTrips: 87, totalKm: 32100, violations: 0, salary: 35000, advance: 0, attendance: 100, aadhaarNumber: '678901234567', panNumber: 'EEVKS7890U', supervisorName: 'Mahesh Sharma', supervisorHistory: [{ supervisor: 'Mahesh Sharma', fromMonth: '2024-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'Axis Bank', accountNumber: '912345678901234', ifsc: 'UTIB0001234', upiId: 'vikram.singh@axl' } },
-  { id: 'D006', name: 'Arjun Pillai', phone: '9321098745', altPhone: '', dob: '1983-03-08', address: 'Chennai, Tamil Nadu', dlNumber: 'TN-01-20130023456', licenseCategory: 'HMV', licenseExpiry: '2027-03-07', experience: 14, emergencyContact: '9933221100', status: 'Active', assignedVehicle: 'V006', fuelScore: 79, safetyScore: 81, onTimeDelivery: 86, customerRating: 4.1, totalTrips: 301, totalKm: 125000, violations: 5, salary: 27000, advance: 2000, attendance: 94, aadhaarNumber: '789012345678', panNumber: 'FFAJP1234V', supervisorName: 'Ramesh Kumar', supervisorHistory: [{ supervisor: 'Ramesh Kumar', fromMonth: '2024-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'Canara Bank', accountNumber: '1234567890123', ifsc: 'CNRB0001234', upiId: 'arjun.pillai@upi' } },
-  { id: 'D007', name: 'Deepak Yadav', phone: '9210987656', altPhone: '8109876543', dob: '1988-09-14', address: 'Jaipur, Rajasthan', dlNumber: 'RJ-14-20160034567', licenseCategory: 'HMV', licenseExpiry: '2029-09-13', experience: 10, emergencyContact: '9922110099', status: 'Active', assignedVehicle: 'V007', fuelScore: 84, safetyScore: 86, onTimeDelivery: 89, customerRating: 4.4, totalTrips: 234, totalKm: 178500, violations: 4, salary: 29000, advance: 3000, attendance: 97, aadhaarNumber: '890123456789', panNumber: 'GGDYD5678W', supervisorName: 'Mahesh Sharma', supervisorHistory: [{ supervisor: 'Ramesh Kumar', fromMonth: '2024-01', toMonth: '2026-02' }, { supervisor: 'Mahesh Sharma', fromMonth: '2026-03', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'Bank of Baroda', accountNumber: '23456789012345', ifsc: 'BARB0DBJAIP', upiId: 'deepak.yadav@ybl' } },
-  { id: 'D008', name: 'Santosh Gupta', phone: '9109876567', altPhone: '', dob: '1975-12-25', address: 'Lucknow, Uttar Pradesh', dlNumber: 'UP-80-20080045678', licenseCategory: 'HMV', licenseExpiry: '2026-12-24', experience: 20, emergencyContact: '9911009988', status: 'Active', assignedVehicle: 'V008', fuelScore: 71, safetyScore: 69, onTimeDelivery: 80, customerRating: 3.9, totalTrips: 612, totalKm: 89300, violations: 15, salary: 24000, advance: 10000, attendance: 85, aadhaarNumber: '901234567890', panNumber: 'HHSGP9012X', supervisorName: 'Self', supervisorHistory: [{ supervisor: 'Self', fromMonth: '2024-01', toMonth: null }], dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null }, panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null }, bankDetails: { bankName: 'Union Bank of India', accountNumber: '345678901234', ifsc: 'UBIN0534567', upiId: '' } },
-];
+const vehicles = [];
+const drivers  = [];
+const trips    = [];
 
-const trips = [
-  { id: 'T001', voucherNo: 'T001', placementConfirmed: true, placementDateTime: '2026-05-24T08:00', placementRemarks: '', cnNumber: 'CN001', cnDate: '2026-05-24', consigneeName: 'Reliance Retail - Delhi DC', consigneeAddress: 'Bhiwandi Warehouse, Delhi', consigneeContact: '9900001111', origin: 'Mumbai', destination: 'Delhi', stops: ['Surat', 'Ahmedabad', 'Jaipur'], viaStops: [{ city: 'Surat', type: 'Pickup', distanceFromPrev: 280 }, { city: 'Ahmedabad', type: 'Delivery', distanceFromPrev: 265 }, { city: 'Jaipur', type: 'Delivery', distanceFromPrev: 590 }], status: 'In Transit', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D001', vehicleId: 'V001', customer: 'Reliance Industries', contactPerson: 'Rahul Mehta', contactNo: '9812345678', address: 'Nariman Point, Mumbai', category: 'MARKET', segment: 'Electronics', businessGroup: 'West Zone', employeeId: 'E001', placementDate: '2026-05-23', noOfVehicles: 1, vehicleLoadType: '32FT MXL', cargo: 'Electronics', content: 'Consumer Electronics', rateType: 'FIXED', weight: 22.5, packages: 150, rate: 0, freight: 45000, loadingCharges: 800, unloadingCharges: 800, otherCharges: 400, commission: 0, advance: 10000, paymentTerms: 'Net 30', creditDays: 30, total: 47000, balance: 37000, volume: 120, plannedDate: '2026-05-24', actualDeparture: '2026-05-24', eta: '2026-05-27', distance: 1421, approxTimeHrs: 48, plannedKm: 1400, actualKm: 1421, tollCost: 2800, fuelCost: 14200, revenue: 45000, pod: false, delay: 2 },
-  { id: 'T002', voucherNo: 'T002', placementConfirmed: true, placementDateTime: '2026-05-21T09:00', placementRemarks: '', cnNumber: 'CN002', cnDate: '2026-05-21', consigneeName: 'Wipro Campus - Bangalore', consigneeAddress: 'Electronic City, Bangalore', consigneeContact: '9900002222', origin: 'Pune', destination: 'Bangalore', stops: [], viaStops: [], status: 'Completed', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D002', vehicleId: 'V002', customer: 'Wipro Ltd', contactPerson: 'Suresh Nair', contactNo: '9823456789', address: 'Hinjewadi, Pune', category: 'INDUSTRIAL', segment: 'IT Equipment', businessGroup: 'South Zone', employeeId: 'E002', placementDate: '2026-05-21', noOfVehicles: 1, vehicleLoadType: '24FT', cargo: 'IT Equipment', content: 'Servers & Networking', rateType: 'FIXED', weight: 12.0, packages: 80, rate: 0, freight: 28000, loadingCharges: 500, unloadingCharges: 500, otherCharges: 0, commission: 0, advance: 5000, paymentTerms: 'Net 15', creditDays: 15, total: 29000, balance: 24000, volume: 80, plannedDate: '2026-05-22', actualDeparture: '2026-05-22', eta: '2026-05-23', distance: 840, approxTimeHrs: 28, plannedKm: 840, actualKm: 852, tollCost: 1400, fuelCost: 8400, revenue: 28000, pod: true, delay: 0 },
-  { id: 'T003', voucherNo: 'T003', placementConfirmed: true, placementDateTime: '2026-05-24T10:00', placementRemarks: '', cnNumber: 'CN003', cnDate: '2026-05-24', consigneeName: 'L&T Site Office - Chennai', consigneeAddress: 'OMR, Chennai', consigneeContact: '9900003333', origin: 'Ahmedabad', destination: 'Chennai', stops: ['Hyderabad'], viaStops: [{ city: 'Hyderabad', type: 'Delivery', distanceFromPrev: 1050 }], status: 'In Transit', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D003', vehicleId: 'V003', customer: 'L&T Construction', contactPerson: 'Mohan Desai', contactNo: '9834567890', address: 'Navrangpura, Ahmedabad', category: 'INDUSTRIAL', segment: 'Construction', businessGroup: 'South Zone', employeeId: 'E001', placementDate: '2026-05-24', noOfVehicles: 1, vehicleLoadType: '32FT MXL', cargo: 'Steel', content: 'TMT Steel Bars', rateType: 'PER TON', weight: 34.0, packages: 180, rate: 1800, freight: 61200, loadingCharges: 1000, unloadingCharges: 1000, otherCharges: 800, commission: 0, advance: 15000, paymentTerms: 'Net 45', creditDays: 45, total: 64000, balance: 49000, volume: 180, plannedDate: '2026-05-25', actualDeparture: '2026-05-25', eta: '2026-05-27', distance: 1720, approxTimeHrs: 58, plannedKm: 1700, actualKm: 0, tollCost: 3200, fuelCost: 18000, revenue: 62000, pod: false, delay: 0 },
-  { id: 'T004', voucherNo: 'T004', placementConfirmed: false, placementDateTime: '', placementRemarks: '', cnNumber: '', cnDate: '', consigneeName: 'Amazon FC - Kolkata', consigneeAddress: 'Dankuni, Kolkata', consigneeContact: '9900004444', origin: 'Delhi', destination: 'Kolkata', stops: ['Varanasi'], viaStops: [{ city: 'Varanasi', type: 'Pickup', distanceFromPrev: 820 }], status: 'Planned', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D005', vehicleId: 'V005', customer: 'Amazon India', contactPerson: 'Priya Kapoor', contactNo: '9845678901', address: 'Connaught Place, Delhi', category: 'MARKET', segment: 'E-Commerce', businessGroup: 'East Zone', employeeId: 'E002', placementDate: '2026-05-27', noOfVehicles: 1, vehicleLoadType: '32FT MXL', cargo: 'Consumer Goods', content: 'Mixed Consumer Goods', rateType: 'FIXED', weight: 38.0, packages: 200, rate: 0, freight: 58000, loadingCharges: 0, unloadingCharges: 0, otherCharges: 0, commission: 0, advance: 20000, paymentTerms: 'Net 30', creditDays: 30, total: 58000, balance: 38000, volume: 200, plannedDate: '2026-05-28', actualDeparture: null, eta: '2026-05-30', distance: 1530, approxTimeHrs: 51, plannedKm: 1530, actualKm: 0, tollCost: 3500, fuelCost: 16000, revenue: 58000, pod: false, delay: 0 },
-  { id: 'T005', voucherNo: 'T005', placementConfirmed: true, placementDateTime: '2026-05-22T06:00', placementRemarks: '', cnNumber: 'CN005', cnDate: '2026-05-22', consigneeName: 'Flipkart Warehouse - Mumbai', consigneeAddress: 'Bhiwandi, Mumbai', consigneeContact: '9900005555', origin: 'Bangalore', destination: 'Mumbai', stops: ['Pune'], viaStops: [{ city: 'Pune', type: 'Delivery', distanceFromPrev: 1000 }], status: 'Delayed', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D006', vehicleId: 'V006', customer: 'Flipkart', contactPerson: 'Anil Sharma', contactNo: '9856789012', address: 'Koramangala, Bangalore', category: 'MARKET', segment: 'FMCG', businessGroup: 'West Zone', employeeId: 'E001', placementDate: '2026-05-22', noOfVehicles: 1, vehicleLoadType: '24FT', cargo: 'FMCG', content: 'FMCG Mixed Goods', rateType: 'FIXED', weight: 28.0, packages: 150, rate: 0, freight: 42000, loadingCharges: 600, unloadingCharges: 600, otherCharges: 800, commission: 0, advance: 8000, paymentTerms: 'Advance', creditDays: 0, total: 44000, balance: 36000, volume: 150, plannedDate: '2026-05-23', actualDeparture: '2026-05-24', eta: '2026-05-26', distance: 1250, approxTimeHrs: 42, plannedKm: 1200, actualKm: 890, tollCost: 2200, fuelCost: 12500, revenue: 42000, pod: false, delay: 18 },
-  { id: 'T006', voucherNo: 'T006', placementConfirmed: true, placementDateTime: '2026-05-19T08:00', placementRemarks: '', cnNumber: 'CN006', cnDate: '2026-05-19', consigneeName: 'Asian Paints Depot - Hyderabad', consigneeAddress: 'Balanagar, Hyderabad', consigneeContact: '9900006666', origin: 'Jaipur', destination: 'Hyderabad', stops: [], viaStops: [], status: 'Completed', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D007', vehicleId: 'V007', customer: 'Asian Paints', contactPerson: 'Deepak Verma', contactNo: '9867890123', address: 'Malviya Nagar, Jaipur', category: 'INDUSTRIAL', segment: 'Manufacturing', businessGroup: 'South Zone', employeeId: 'E002', placementDate: '2026-05-19', noOfVehicles: 1, vehicleLoadType: '32FT MXL', cargo: 'Paint', content: 'Industrial Paint Cans', rateType: 'FIXED', weight: 30.0, packages: 160, rate: 0, freight: 38000, loadingCharges: 500, unloadingCharges: 500, otherCharges: 0, commission: 0, advance: 5000, paymentTerms: 'Net 30', creditDays: 30, total: 39000, balance: 34000, volume: 160, plannedDate: '2026-05-20', actualDeparture: '2026-05-20', eta: '2026-05-22', distance: 1120, approxTimeHrs: 38, plannedKm: 1100, actualKm: 1120, tollCost: 1900, fuelCost: 11200, revenue: 38000, pod: true, delay: 0 },
-  { id: 'T007', voucherNo: 'T007', placementConfirmed: true, placementDateTime: '2026-05-20T09:00', placementRemarks: '', cnNumber: '', cnDate: '', consigneeName: 'TVS Dealer - Pune', consigneeAddress: 'Hadapsar, Pune', consigneeContact: '9900007777', origin: 'Chennai', destination: 'Pune', stops: ['Bangalore', 'Goa'], viaStops: [{ city: 'Bangalore', type: 'Pickup', distanceFromPrev: 350 }, { city: 'Goa', type: 'Delivery', distanceFromPrev: 560 }], status: 'Cancelled', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D008', vehicleId: 'V008', customer: 'TVS Motors', contactPerson: 'Kiran Raj', contactNo: '9878901234', address: 'Ambattur, Chennai', category: 'INDUSTRIAL', segment: 'Automotive', businessGroup: 'West Zone', employeeId: 'E001', placementDate: '2026-05-20', noOfVehicles: 1, vehicleLoadType: '32FT MXL', cargo: 'Auto Parts', content: 'Two-Wheeler Components', rateType: 'FIXED', weight: 16.0, packages: 90, rate: 0, freight: 0, loadingCharges: 0, unloadingCharges: 0, otherCharges: 0, commission: 0, advance: 0, paymentTerms: 'Net 30', creditDays: 30, total: 0, balance: 0, volume: 90, plannedDate: '2026-05-21', actualDeparture: null, eta: '2026-05-24', distance: 1400, approxTimeHrs: 47, plannedKm: 1400, actualKm: 0, tollCost: 0, fuelCost: 0, revenue: 0, pod: false, delay: 0 },
-  { id: 'T008', voucherNo: 'T008', placementConfirmed: true, placementDateTime: '2026-05-17T07:00', placementRemarks: '', cnNumber: 'CN008', cnDate: '2026-05-17', consigneeName: 'HUL Depot - Jaipur', consigneeAddress: 'Sitapura, Jaipur', consigneeContact: '9900008888', origin: 'Mumbai', destination: 'Jaipur', stops: [], viaStops: [], status: 'Completed', approvalStatus: 'Approved', rejectionReason: '', driverId: 'D001', vehicleId: 'V001', customer: 'HUL', contactPerson: 'Sanjay Gupta', contactNo: '9889012345', address: 'Lower Parel, Mumbai', category: 'MARKET', segment: 'FMCG', businessGroup: 'North Zone', employeeId: 'E002', placementDate: '2026-05-17', noOfVehicles: 1, vehicleLoadType: '24FT', cargo: 'Consumer Goods', content: 'HUL FMCG Products', rateType: 'FIXED', weight: 20.0, packages: 110, rate: 0, freight: 36000, loadingCharges: 500, unloadingCharges: 500, otherCharges: 500, commission: 0, advance: 8000, paymentTerms: 'Net 30', creditDays: 30, total: 37500, balance: 29500, volume: 110, plannedDate: '2026-05-18', actualDeparture: '2026-05-18', eta: '2026-05-19', distance: 1154, approxTimeHrs: 39, plannedKm: 1150, actualKm: 1154, tollCost: 2100, fuelCost: 11500, revenue: 36000, pod: true, delay: 0 },
-  { id: 'T009', voucherNo: 'T009', placementConfirmed: false, placementDateTime: '', placementRemarks: '', cnNumber: '', cnDate: '', consigneeName: '', consigneeAddress: '', consigneeContact: '', origin: 'Delhi', destination: 'Mumbai', stops: [], viaStops: [], status: 'Pending Approval', approvalStatus: 'Pending Approval', rejectionReason: '', driverId: 'D004', vehicleId: 'V004', customer: 'Maruti Suzuki', contactPerson: 'Vikram Batra', contactNo: '9890123456', address: 'Gurugram, Haryana', category: 'INDUSTRIAL', segment: 'Automotive', businessGroup: 'West Zone', employeeId: 'E003', placementDate: '2026-06-05', noOfVehicles: 2, vehicleLoadType: '32FT MXL', cargo: 'Auto Parts', content: 'Car Spare Parts', rateType: 'FIXED', weight: 40.0, packages: 220, rate: 0, freight: 72000, loadingCharges: 1200, unloadingCharges: 1200, otherCharges: 600, commission: 0, advance: 20000, paymentTerms: 'Net 30', creditDays: 30, total: 75000, balance: 55000, volume: 220, plannedDate: '2026-06-06', actualDeparture: null, eta: '2026-06-08', distance: 1400, approxTimeHrs: 47, plannedKm: 1400, actualKm: 0, tollCost: 0, fuelCost: 0, revenue: 72000, pod: false, delay: 0 },
-];
-
-// Loaded from the database at boot via loadFromDatabase() — starts empty so
-// clients begin with a clean fuel log instead of demo entries.
-const fuelEntries = [];
-
-// Loaded from the database at boot via loadFromDatabase() — starts empty so
-// clients begin with a clean maintenance log instead of demo entries.
+// DB-backed modules — always loaded from Postgres, never seeded here
+const fuelEntries        = [];
 const maintenanceRecords = [];
+const complianceRecords  = [];
+const consignments       = [];
 
-// Loaded from the database at boot via loadFromDatabase() — starts empty so
-// vehicles show "Not Set" compliance docs until each one is filled in via the UI.
-const complianceRecords = [];
+// Users — DB-backed; admin is auto-seeded by server.js on first boot
+const users = [];
 
-const alerts = [
-  { id: 'A001', type: 'Speed Violation', severity: 'High', vehicleId: 'V003', message: 'V003 exceeded 80 km/h speed limit — 85 km/h detected', timestamp: '2026-05-26T10:42:00', read: false },
-  { id: 'A002', type: 'Fitness Expired', severity: 'Critical', vehicleId: 'V004', message: 'Fitness certificate for MH-12-AB-1234 expired on 28-May-2026', timestamp: '2026-05-26T09:00:00', read: false },
-  { id: 'A003', type: 'Breakdown', severity: 'Critical', vehicleId: 'V008', message: 'Breakdown reported — V008 (UP-80-OP-1122) near Lucknow', timestamp: '2026-05-25T18:30:00', read: false },
-  { id: 'A004', type: 'Maintenance Due', severity: 'Medium', vehicleId: 'V007', message: 'V007 due for 50,000 KM service — currently at 178,500 KM', timestamp: '2026-05-25T08:00:00', read: true },
-  { id: 'A005', type: 'Insurance Expiry', severity: 'High', vehicleId: 'V002', message: 'Insurance expiring in 81 days for MH-12-CD-5678', timestamp: '2026-05-25T08:00:00', read: true },
-  { id: 'A006', type: 'Trip Delayed', severity: 'Medium', vehicleId: 'V006', message: 'Trip T005 is delayed by 18 hours — customer Flipkart notified', timestamp: '2026-05-25T14:00:00', read: false },
-  { id: 'A007', type: 'Geofence Exit', severity: 'Low', vehicleId: 'V001', message: 'V001 exited permitted route zone near Surat', timestamp: '2026-05-26T11:15:00', read: false },
-  { id: 'A008', type: 'Long Idle', severity: 'Low', vehicleId: 'V002', message: 'V002 idle for 4+ hours at Nashik depot', timestamp: '2026-05-26T10:00:00', read: true },
-];
+// Operational data — in-memory, cleared for production
+const alerts              = [];
+const costings            = [];
+const tollReconciliations = [];
+const pettyCash           = [];
+const fastagAccounts      = [];
+const fastagTransactions  = [];
+const tyres               = [];
+const verificationLog     = [];
+const spareParts          = [];
+const spareLedger         = [];
 
-// Hash of the shared seed password 'tms@1234' — each user gets their own stored hash
-// (login compares against this per-user via bcrypt, not a single global string).
-const SEED_PASSWORD_HASH = '$2b$10$xapmxgMpAzGMmbVozY9aUuFDSFTEG4OSZzxIhvPayfigJ/ZqVem1W';
+const payoutPool = { totalLoaded: 0, balance: 0, lowBalanceThreshold: 50000 };
 
-const users = [
-  { id: 'U001', name: 'Admin User', email: 'admin@tms.in', password: SEED_PASSWORD_HASH, role: 'Super Admin', status: 'Active', lastLogin: '2026-05-26T09:00:00', permissions: ['all'] },
-  { id: 'U002', name: 'Priya Mehta', email: 'priya@tms.in', password: SEED_PASSWORD_HASH, role: 'Fleet Manager', status: 'Active', lastLogin: '2026-05-26T08:30:00', permissions: ['fleet', 'drivers', 'trips', 'reports'] },
-  { id: 'U003', name: 'Karan Shah', email: 'karan@tms.in', password: SEED_PASSWORD_HASH, role: 'Dispatcher', status: 'Active', lastLogin: '2026-05-25T17:00:00', permissions: ['trips', 'fleet_view', 'drivers_view'] },
-  { id: 'U004', name: 'Nisha Patel', email: 'nisha@tms.in', password: SEED_PASSWORD_HASH, role: 'Accountant', status: 'Active', lastLogin: '2026-05-25T16:00:00', permissions: ['costing', 'billing', 'reports'] },
-  { id: 'U005', name: 'Raj Iyer', email: 'raj@tms.in', password: SEED_PASSWORD_HASH, role: 'Viewer', status: 'Active', lastLogin: '2026-05-24T11:00:00', permissions: ['dashboard_view', 'reports_view'] },
-  { id: 'U006', name: 'Anita Roy', email: 'anita@tms.in', password: SEED_PASSWORD_HASH, role: 'Fleet Manager', status: 'Inactive', lastLogin: '2026-04-10T09:00:00', permissions: ['fleet', 'drivers', 'trips'] },
-];
-
-const costings = [
-  { tripId: 'T001', fuel: 14200, toll: 2800, driver: 4667, maintenance: 0, tyre: 500, misc: 800, totalCost: 22967, revenue: 45000, profit: 22033, margin: 49, kmCost: 16.2 },
-  { tripId: 'T002', fuel: 8400, toll: 1400, driver: 3333, maintenance: 0, tyre: 0, misc: 400, totalCost: 13533, revenue: 28000, profit: 14467, margin: 52, kmCost: 15.9 },
-  { tripId: 'T003', fuel: 18000, toll: 3200, driver: 5333, maintenance: 0, tyre: 0, misc: 1000, totalCost: 27533, revenue: 62000, profit: 34467, margin: 56, kmCost: 16.1 },
-  { tripId: 'T006', fuel: 11200, toll: 1900, driver: 3667, maintenance: 0, tyre: 0, misc: 600, totalCost: 17367, revenue: 38000, profit: 20633, margin: 54, kmCost: 15.5 },
-  { tripId: 'T008', fuel: 11500, toll: 2100, driver: 3667, maintenance: 0, tyre: 0, misc: 500, totalCost: 17767, revenue: 36000, profit: 18233, margin: 51, kmCost: 15.4 },
-];
-
+// Analytics — returns empty/zero until real data accumulates
 const analytics = {
-  monthlyRevenue: [
-    { month: 'Dec', revenue: 285000, cost: 168000, trips: 42 },
-    { month: 'Jan', revenue: 312000, cost: 178000, trips: 48 },
-    { month: 'Feb', revenue: 298000, cost: 172000, trips: 45 },
-    { month: 'Mar', revenue: 345000, cost: 195000, trips: 52 },
-    { month: 'Apr', revenue: 378000, cost: 210000, trips: 58 },
-    { month: 'May', revenue: 320000, cost: 184000, trips: 47 },
-  ],
-  fuelTrend: [
-    { month: 'Dec', totalLiters: 8200, avgKmpl: 4.2, cost: 782000 },
-    { month: 'Jan', totalLiters: 9100, avgKmpl: 4.1, cost: 878650 },
-    { month: 'Feb', totalLiters: 8600, avgKmpl: 4.3, cost: 830820 },
-    { month: 'Mar', totalLiters: 9800, avgKmpl: 4.0, cost: 952020 },
-    { month: 'Apr', totalLiters: 10500, avgKmpl: 4.1, cost: 1021500 },
-    { month: 'May', totalLiters: 9300, avgKmpl: 4.2, cost: 904410 },
-  ],
-  vehicleUtilization: vehicles.map(v => ({ name: v.regNumber.slice(-7), utilization: v.utilization })),
-  fleetStatus: { running: 4, idle: 2, maintenance: 1, breakdown: 1 },
-  topDrivers: drivers.sort((a, b) => b.safetyScore - a.safetyScore).slice(0, 5).map(d => ({ name: d.name, score: d.safetyScore, trips: d.totalTrips })),
+  monthlyRevenue:     [],
+  fuelTrend:          [],
+  vehicleUtilization: [],
+  fleetStatus:        { running: 0, idle: 0, maintenance: 0, breakdown: 0 },
+  topDrivers:         [],
 };
 
-
-// Toll routes — all major NH corridors used by fleet
+// Toll routes — NH corridor reference data for the toll calculator (not client-specific)
 const tollRoutes = [
   {
     id: 'RT001', origin: 'Delhi', destination: 'Mumbai', highway: 'NH-48', distance: 1421,
@@ -119,16 +58,16 @@ const tollRoutes = [
   {
     id: 'RT002', origin: 'Delhi', destination: 'Kolkata', highway: 'NH-19', distance: 1530,
     plazas: [
-      { id: 'TP011', name: 'Palwal',              location: 'Palwal, Haryana',             km: 70,   charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP012', name: 'Agra (Khandauli)',    location: 'Agra, Uttar Pradesh',         km: 215,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP013', name: 'Tundla',              location: 'Firozabad, UP',               km: 275,  charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP014', name: 'Kanpur (Bithoor)',    location: 'Kanpur, UP',                  km: 475,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP015', name: 'Prayagraj (Phaphamau)',location: 'Prayagraj, UP',              km: 640,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP016', name: 'Varanasi Bypass',     location: 'Varanasi, UP',                km: 790,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP017', name: 'Mohania',             location: 'Kaimur, Bihar',               km: 900,  charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP018', name: 'Aurangabad (Bihar)',  location: 'Aurangabad, Bihar',           km: 1050, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP019', name: 'Barhi',               location: 'Hazaribagh, Jharkhand',       km: 1220, charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP020', name: 'Panagarh',            location: 'Paschim Bardhaman, WB',       km: 1420, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP011', name: 'Palwal',               location: 'Palwal, Haryana',             km: 70,   charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP012', name: 'Agra (Khandauli)',     location: 'Agra, Uttar Pradesh',         km: 215,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP013', name: 'Tundla',               location: 'Firozabad, UP',               km: 275,  charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP014', name: 'Kanpur (Bithoor)',     location: 'Kanpur, UP',                  km: 475,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP015', name: 'Prayagraj (Phaphamau)',location: 'Prayagraj, UP',               km: 640,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP016', name: 'Varanasi Bypass',      location: 'Varanasi, UP',                km: 790,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP017', name: 'Mohania',              location: 'Kaimur, Bihar',               km: 900,  charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP018', name: 'Aurangabad (Bihar)',   location: 'Aurangabad, Bihar',           km: 1050, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP019', name: 'Barhi',                location: 'Hazaribagh, Jharkhand',       km: 1220, charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP020', name: 'Panagarh',             location: 'Paschim Bardhaman, WB',       km: 1420, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
     ],
   },
   {
@@ -147,28 +86,28 @@ const tollRoutes = [
   {
     id: 'RT004', origin: 'Ahmedabad', destination: 'Chennai', highway: 'NH-48 / NH-44', distance: 1720,
     plazas: [
-      { id: 'TP029', name: 'Sanand',              location: 'Ahmedabad, Gujarat',        km: 25,   charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP030', name: 'Vadodara',            location: 'Vadodara, Gujarat',         km: 105,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP031', name: 'Kim (Surat)',         location: 'Surat, Gujarat',            km: 270,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP032', name: 'Pune (Khalapur)',     location: 'Raigad, Maharashtra',       km: 560,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP033', name: 'Solapur Bypass',      location: 'Solapur, Maharashtra',      km: 850,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP034', name: 'Gulbarga',            location: 'Kalaburagi, Karnataka',     km: 1050, charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP035', name: 'Hyderabad (Attapur)', location: 'Hyderabad, Telangana',      km: 1270, charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP036', name: 'Kurnool',             location: 'Kurnool, Andhra Pradesh',   km: 1440, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP037', name: 'Nellore',             location: 'Nellore, Andhra Pradesh',   km: 1580, charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP038', name: 'Sriperumbudur',       location: 'Kancheepuram, Tamil Nadu',  km: 1680, charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP029', name: 'Sanand',               location: 'Ahmedabad, Gujarat',        km: 25,   charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP030', name: 'Vadodara',             location: 'Vadodara, Gujarat',         km: 105,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP031', name: 'Kim (Surat)',          location: 'Surat, Gujarat',            km: 270,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP032', name: 'Pune (Khalapur)',      location: 'Raigad, Maharashtra',       km: 560,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP033', name: 'Solapur Bypass',       location: 'Solapur, Maharashtra',      km: 850,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP034', name: 'Gulbarga',             location: 'Kalaburagi, Karnataka',     km: 1050, charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP035', name: 'Hyderabad (Attapur)',  location: 'Hyderabad, Telangana',      km: 1270, charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP036', name: 'Kurnool',              location: 'Kurnool, Andhra Pradesh',   km: 1440, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP037', name: 'Nellore',              location: 'Nellore, Andhra Pradesh',   km: 1580, charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP038', name: 'Sriperumbudur',        location: 'Kancheepuram, Tamil Nadu',  km: 1680, charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
     ],
   },
   {
     id: 'RT005', origin: 'Jaipur', destination: 'Hyderabad', highway: 'NH-48 / NH-44', distance: 1120,
     plazas: [
-      { id: 'TP039', name: 'Kishangarh',      location: 'Ajmer, Rajasthan',       km: 90,   charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP040', name: 'Udaipur (Debari)',location: 'Udaipur, Rajasthan',     km: 340,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP041', name: 'Vadodara',        location: 'Vadodara, Gujarat',      km: 570,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP042', name: 'Surat Bypass',    location: 'Surat, Gujarat',         km: 730,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
-      { id: 'TP043', name: 'Pune (Khalapur)', location: 'Raigad, Maharashtra',    km: 850,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
-      { id: 'TP044', name: 'Solapur',         location: 'Solapur, Maharashtra',   km: 1000, charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
-      { id: 'TP045', name: 'Gulbarga (Bidar)',location: 'Bidar, Karnataka',       km: 1070, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP039', name: 'Kishangarh',       location: 'Ajmer, Rajasthan',       km: 90,   charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP040', name: 'Udaipur (Debari)', location: 'Udaipur, Rajasthan',     km: 340,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP041', name: 'Vadodara',         location: 'Vadodara, Gujarat',      km: 570,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP042', name: 'Surat Bypass',     location: 'Surat, Gujarat',         km: 730,  charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
+      { id: 'TP043', name: 'Pune (Khalapur)',  location: 'Raigad, Maharashtra',    km: 850,  charges: { car: 80,  lcv: 130, hcv2: 235, hcv3: 340, multiAxle: 470, oversized: 600 } },
+      { id: 'TP044', name: 'Solapur',          location: 'Solapur, Maharashtra',   km: 1000, charges: { car: 70,  lcv: 115, hcv2: 205, hcv3: 295, multiAxle: 410, oversized: 520 } },
+      { id: 'TP045', name: 'Gulbarga (Bidar)', location: 'Bidar, Karnataka',       km: 1070, charges: { car: 75,  lcv: 125, hcv2: 220, hcv3: 315, multiAxle: 440, oversized: 560 } },
     ],
   },
   {
@@ -197,307 +136,12 @@ const tollRoutes = [
   },
 ];
 
-// Per-trip toll reconciliation records
-const tollReconciliations = [
-  {
-    id: 'TR001', tripId: 'T001', vehicleId: 'V001', routeId: 'RT001',
-    route: 'Mumbai → Delhi', highway: 'NH-48', distance: 1421,
-    vehicleCategory: 'hcv3', plannedToll: 2800,
-    fasttagAmount: 2700, cashAmount: 350, totalActual: 3050, variance: 250,
-    varianceType: 'Excess Charged', status: 'Under Review', date: '2026-05-24',
-    plazaEntries: [
-      { plazaName: 'Manor',           planned: 330, fasttag: 330, cash: 0,   status: 'Matched' },
-      { plazaName: 'Vapi-Silvassa',   planned: 295, fasttag: 295, cash: 0,   status: 'Matched' },
-      { plazaName: 'Kim (Surat)',     planned: 315, fasttag: 385, cash: 0,   status: 'Disputed', note: 'Overcharged — Multi-Axle rate applied instead of HCV 3-Axle' },
-      { plazaName: 'Vadodara',        planned: 340, fasttag: 340, cash: 0,   status: 'Matched' },
-      { plazaName: 'Bavla',           planned: 315, fasttag: 315, cash: 0,   status: 'Matched' },
-      { plazaName: 'Kelwa',           planned: 315, fasttag: 315, cash: 0,   status: 'Matched' },
-      { plazaName: 'Kishangarh',      planned: 295, fasttag: 295, cash: 0,   status: 'Matched' },
-      { plazaName: 'Shahjahanpur',    planned: 330, fasttag: 0,   cash: 350, status: 'Cash', note: 'FASTag reader faulty — paid cash' },
-      { plazaName: 'Bilaspur-Tauru',  planned: 315, fasttag: 315, cash: 0,   status: 'Matched' },
-      { plazaName: 'Kherki Daula',    planned: 315, fasttag: 315, cash: 0,   status: 'Matched' },
-    ],
-    notes: 'Kim toll plaza overcharged ₹70 — Multi-Axle rate applied instead of HCV 3-Axle. Dispute raised with NHAI.',
-  },
-  {
-    id: 'TR002', tripId: 'T002', vehicleId: 'V002', routeId: 'RT006',
-    route: 'Pune → Bangalore', highway: 'NH-48', distance: 840,
-    vehicleCategory: 'hcv2', plannedToll: 1400,
-    fasttagAmount: 1400, cashAmount: 0, totalActual: 1400, variance: 0,
-    varianceType: 'Matched', status: 'Reconciled', date: '2026-05-22',
-    plazaEntries: [
-      { plazaName: 'Khalapur',        planned: 235, fasttag: 235, cash: 0, status: 'Matched' },
-      { plazaName: 'Kolhapur',        planned: 220, fasttag: 220, cash: 0, status: 'Matched' },
-      { plazaName: 'Belgaum',         planned: 205, fasttag: 205, cash: 0, status: 'Matched' },
-      { plazaName: 'Hubli Bypass',    planned: 235, fasttag: 235, cash: 0, status: 'Matched' },
-      { plazaName: 'Davangere',       planned: 220, fasttag: 220, cash: 0, status: 'Matched' },
-      { plazaName: 'Tumkur Bypass',   planned: 205, fasttag: 205, cash: 0, status: 'Matched' },
-    ],
-    notes: 'All tolls matched. Clean trip with zero variance.',
-  },
-  {
-    id: 'TR003', tripId: 'T003', vehicleId: 'V003', routeId: 'RT004',
-    route: 'Ahmedabad → Chennai', highway: 'NH-48 / NH-44', distance: 1720,
-    vehicleCategory: 'multiAxle', plannedToll: 3200,
-    fasttagAmount: 3050, cashAmount: 0, totalActual: 3050, variance: -150,
-    varianceType: 'Under-reported', status: 'Pending Review', date: '2026-05-25',
-    plazaEntries: [
-      { plazaName: 'Sanand',              planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Vadodara',            planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Kim (Surat)',         planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Pune (Khalapur)',     planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Solapur Bypass',      planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Gulbarga',            planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Hyderabad (Attapur)', planned: 340, fasttag: 190, cash: 0, status: 'Disputed', note: 'Partial deduction — possible FASTag low balance at plaza' },
-      { plazaName: 'Kurnool',             planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Nellore',             planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Sriperumbudur',       planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-    ],
-    notes: 'Hyderabad Attapur plaza shows ₹150 short deduction — awaiting NHAI statement confirmation.',
-  },
-  {
-    id: 'TR004', tripId: 'T004', vehicleId: 'V005', routeId: 'RT002',
-    route: 'Delhi → Kolkata', highway: 'NH-19', distance: 1530,
-    vehicleCategory: 'multiAxle', plannedToll: 3500,
-    fasttagAmount: 0, cashAmount: 0, totalActual: 0, variance: 0,
-    varianceType: 'Not Started', status: 'Pending', date: '2026-05-28',
-    plazaEntries: [],
-    notes: 'Trip planned. Estimated ₹3,500 toll for Multi-Axle on NH-19. Ensure FASTag balance ≥ ₹5,000 before departure.',
-  },
-  {
-    id: 'TR005', tripId: 'T005', vehicleId: 'V006', routeId: 'RT003',
-    route: 'Bangalore → Mumbai', highway: 'NH-48', distance: 1250,
-    vehicleCategory: 'hcv3', plannedToll: 2200,
-    fasttagAmount: 1885, cashAmount: 0, totalActual: 1885, variance: -315,
-    varianceType: 'Missing Deduction', status: 'Pending Review', date: '2026-05-24',
-    plazaEntries: [
-      { plazaName: 'Nelamangala',     planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Chitradurga',     planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Hubli Bypass',    planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Belgaum',         planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Kolhapur',        planned: 315, fasttag: 0,   cash: 0, status: 'Missing', note: 'No FASTag deduction — FASTag balance was zero. Driver liable for ₹315' },
-      { plazaName: 'Pune (Khalapur)', planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Manor',           planned: 330, fasttag: 330, cash: 0, status: 'Matched' },
-    ],
-    notes: 'Kolhapur toll deduction missing — FASTag balance exhausted. Driver (Arjun Pillai) to reimburse ₹315.',
-  },
-  {
-    id: 'TR006', tripId: 'T006', vehicleId: 'V007', routeId: 'RT005',
-    route: 'Jaipur → Hyderabad', highway: 'NH-48 / NH-44', distance: 1120,
-    vehicleCategory: 'hcv3', plannedToll: 1900,
-    fasttagAmount: 1900, cashAmount: 0, totalActual: 1900, variance: 0,
-    varianceType: 'Matched', status: 'Reconciled', date: '2026-05-20',
-    plazaEntries: [
-      { plazaName: 'Kishangarh',      planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Udaipur (Debari)',planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Vadodara',        planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Surat Bypass',    planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Pune (Khalapur)', planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Solapur',         planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-    ],
-    notes: 'Fully reconciled. Zero variance — clean trip.',
-  },
-  {
-    id: 'TR008', tripId: 'T008', vehicleId: 'V001', routeId: 'RT007',
-    route: 'Mumbai → Jaipur', highway: 'NH-48', distance: 1154,
-    vehicleCategory: 'hcv3', plannedToll: 2100,
-    fasttagAmount: 2100, cashAmount: 0, totalActual: 2100, variance: 0,
-    varianceType: 'Matched', status: 'Reconciled', date: '2026-05-18',
-    plazaEntries: [
-      { plazaName: 'Vasai Creek',   planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Manor',         planned: 330, fasttag: 330, cash: 0, status: 'Matched' },
-      { plazaName: 'Vapi-Silvassa', planned: 295, fasttag: 295, cash: 0, status: 'Matched' },
-      { plazaName: 'Kim (Surat)',   planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Vadodara',      planned: 340, fasttag: 340, cash: 0, status: 'Matched' },
-      { plazaName: 'Bavla',         planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-      { plazaName: 'Kelwa',         planned: 315, fasttag: 315, cash: 0, status: 'Matched' },
-    ],
-    notes: 'Fully reconciled. All FASTag deductions correct.',
-  },
-];
-
-const payoutPool = { totalLoaded: 500000, balance: 485000, lowBalanceThreshold: 50000 };
-
-const pettyCash = [
-  { id: 'PC001', tripId: 'T001', driverId: 'D001', driverName: 'Ramesh Kumar', tripRoute: 'Mumbai → Delhi', issueDate: '2026-05-24', cashIssued: 15000, expenses: { diesel: 8200, toll: 2800, food: 800, maintenance: 0, misc: 400 }, totalSpent: 12200, balance: 2800, status: 'Settled', settledDate: '2026-05-27', notes: 'Balance of ₹2,800 returned by driver', transferStatus: 'Success', transferAmount: 15000, transferMode: 'UPI', payoutId: 'pout_8f3a1c9d2e', payoutTime: '2026-05-24T09:42:00', failureReason: null },
-  { id: 'PC002', tripId: 'T002', driverId: 'D002', driverName: 'Suresh Patil', tripRoute: 'Pune → Bangalore', issueDate: '2026-05-22', cashIssued: 10000, expenses: { diesel: 7200, toll: 1400, food: 650, maintenance: 900, misc: 384 }, totalSpent: 10534, balance: -534, status: 'Short Paid', settledDate: '2026-05-23', notes: 'Driver paid ₹534 extra. Company reimbursed.', transferStatus: 'Success', transferAmount: 10000, transferMode: 'UPI', payoutId: 'pout_2b6e4f8a71', payoutTime: '2026-05-22T08:15:00', failureReason: null },
-  { id: 'PC003', tripId: 'T003', driverId: 'D003', driverName: 'Mahesh Sharma', tripRoute: 'Ahmedabad → Chennai', issueDate: '2026-05-25', cashIssued: 20000, expenses: { diesel: 0, toll: 0, food: 0, maintenance: 0, misc: 0 }, totalSpent: 0, balance: 20000, status: 'Pending', settledDate: null, notes: 'Driver in transit. Reconciliation pending.', transferStatus: 'Success', transferAmount: 20000, transferMode: 'UPI', payoutId: 'pout_d491c0e3b6', payoutTime: '2026-05-25T07:50:00', failureReason: null },
-  { id: 'PC004', tripId: 'T004', driverId: 'D005', driverName: 'Vikram Singh', tripRoute: 'Delhi → Kolkata', issueDate: '2026-05-28', cashIssued: 18000, expenses: { diesel: 0, toll: 0, food: 0, maintenance: 0, misc: 0 }, totalSpent: 0, balance: 18000, status: 'Pending', settledDate: null, notes: 'Trip planned. Cash issued before departure.', transferStatus: 'Pending Approval', transferAmount: 18000, transferMode: 'UPI', payoutId: null, payoutTime: null, failureReason: null },
-  { id: 'PC005', tripId: 'T005', driverId: 'D006', driverName: 'Arjun Pillai', tripRoute: 'Bangalore → Mumbai', issueDate: '2026-05-24', cashIssued: 12000, expenses: { diesel: 9500, toll: 2200, food: 600, maintenance: 1200, misc: 0 }, totalSpent: 13500, balance: -1500, status: 'Pending', settledDate: null, notes: 'Driver spent ₹1,500 more. Trip delayed.', transferStatus: 'Failed', transferAmount: 12000, transferMode: 'UPI', payoutId: null, payoutTime: null, failureReason: 'Driver UPI ID invalid — please verify and retry' },
-  { id: 'PC006', tripId: 'T006', driverId: 'D007', driverName: 'Deepak Yadav', tripRoute: 'Jaipur → Hyderabad', issueDate: '2026-05-20', cashIssued: 14000, expenses: { diesel: 9800, toll: 1900, food: 700, maintenance: 0, misc: 400 }, totalSpent: 12800, balance: 1200, status: 'Settled', settledDate: '2026-05-22', notes: 'Balance ₹1,200 returned.', transferStatus: 'Success', transferAmount: 14000, transferMode: 'UPI', payoutId: 'pout_71a9d2f0c4', payoutTime: '2026-05-20T08:05:00', failureReason: null },
-  { id: 'PC007', tripId: 'T008', driverId: 'D001', driverName: 'Ramesh Kumar', tripRoute: 'Mumbai → Jaipur', issueDate: '2026-05-18', cashIssued: 12000, expenses: { diesel: 8800, toll: 2100, food: 750, maintenance: 0, misc: 550 }, totalSpent: 12200, balance: -200, status: 'Short Paid', settledDate: '2026-05-19', notes: 'Company reimbursed ₹200 to driver.', transferStatus: 'Success', transferAmount: 12000, transferMode: 'UPI', payoutId: 'pout_5c0e8b3a92', payoutTime: '2026-05-18T07:30:00', failureReason: null },
-];
-
-const fastagAccounts = [
-  { vehicleId: 'V001', regNumber: 'MH-12-AB-1234', fastagId: 'FT-HDFC-MH12AB1234', bank: 'HDFC Bank', balance: 8450, status: 'Active', lastTransaction: '2026-05-26T10:42:00' },
-  { vehicleId: 'V002', regNumber: 'MH-12-CD-5678', fastagId: 'FT-ICICI-MH12CD5678', bank: 'ICICI Bank', balance: 2100, status: 'Low Balance', lastTransaction: '2026-05-23T14:15:00' },
-  { vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', fastagId: 'FT-SBI-GJ01EF9012', bank: 'SBI', balance: 15200, status: 'Active', lastTransaction: '2026-05-25T09:30:00' },
-  { vehicleId: 'V004', regNumber: 'DL-01-GH-3456', fastagId: 'FT-HDFC-DL01GH3456', bank: 'HDFC Bank', balance: 450, status: 'Low Balance', lastTransaction: '2026-05-10T11:00:00' },
-  { vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', fastagId: 'FT-ICICI-KA09IJ7890', bank: 'ICICI Bank', balance: 22800, status: 'Active', lastTransaction: '2026-05-25T16:20:00' },
-  { vehicleId: 'V006', regNumber: 'TN-01-KL-2345', fastagId: 'FT-AXIS-TN01KL2345', bank: 'Axis Bank', balance: 5600, status: 'Active', lastTransaction: '2026-05-22T08:45:00' },
-  { vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', fastagId: 'FT-HDFC-RJ14MN6789', bank: 'HDFC Bank', balance: 9300, status: 'Active', lastTransaction: '2026-05-21T13:10:00' },
-  { vehicleId: 'V008', regNumber: 'UP-80-OP-1122', fastagId: 'FT-PAYTM-UP80OP1122', bank: 'Paytm Payments Bank', balance: 0, status: 'Inactive', lastTransaction: '2026-05-25T07:00:00' },
-];
-
-const fastagTransactions = [
-  { txnId: 'FTX001', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', bank: 'HDFC Bank', plaza: 'Manor Toll Plaza', highway: 'NH-48', amount: 330, timestamp: '2026-05-24T06:15:00', tripId: 'T001', matched: true },
-  { txnId: 'FTX002', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', bank: 'HDFC Bank', plaza: 'Vapi-Silvassa Toll', highway: 'NH-48', amount: 295, timestamp: '2026-05-24T09:40:00', tripId: 'T001', matched: true },
-  { txnId: 'FTX003', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', bank: 'HDFC Bank', plaza: 'Kim (Surat) Toll', highway: 'NH-48', amount: 385, timestamp: '2026-05-24T13:22:00', tripId: 'T001', matched: true },
-  { txnId: 'FTX004', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', bank: 'HDFC Bank', plaza: 'Vadodara Toll', highway: 'NH-48', amount: 340, timestamp: '2026-05-24T16:55:00', tripId: 'T001', matched: true },
-  { txnId: 'FTX005', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', bank: 'HDFC Bank', plaza: 'Bavla Toll Plaza', highway: 'NH-48', amount: 315, timestamp: '2026-05-24T18:30:00', tripId: 'T001', matched: true },
-  { txnId: 'FTX006', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', bank: 'ICICI Bank', plaza: 'Khalapur Toll', highway: 'NH-48', amount: 235, timestamp: '2026-05-22T07:10:00', tripId: 'T002', matched: true },
-  { txnId: 'FTX007', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', bank: 'ICICI Bank', plaza: 'Kolhapur Toll', highway: 'NH-48', amount: 220, timestamp: '2026-05-22T11:45:00', tripId: 'T002', matched: true },
-  { txnId: 'FTX008', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', bank: 'SBI', plaza: 'Sanand Toll', highway: 'NH-48', amount: 295, timestamp: '2026-05-25T08:00:00', tripId: 'T003', matched: true },
-  { txnId: 'FTX009', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', bank: 'SBI', plaza: 'Vadodara Toll', highway: 'NH-48', amount: 340, timestamp: '2026-05-25T10:30:00', tripId: 'T003', matched: true },
-  { txnId: 'FTX010', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', bank: 'ICICI Bank', plaza: 'Nelamangala Toll', highway: 'NH-75', amount: 295, timestamp: '2026-05-25T15:20:00', tripId: 'T004', matched: true },
-  { txnId: 'FTX011', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', bank: 'ICICI Bank', plaza: 'Chitradurga Toll', highway: 'NH-75', amount: 340, timestamp: '2026-05-25T20:45:00', tripId: 'T004', matched: true },
-  { txnId: 'FTX012', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', bank: 'Axis Bank', plaza: 'Nelamangala Toll', highway: 'NH-75', amount: 295, timestamp: '2026-05-24T06:30:00', tripId: 'T005', matched: true },
-  { txnId: 'FTX013', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', bank: 'HDFC Bank', plaza: 'Kishangarh Toll', highway: 'NH-48', amount: 295, timestamp: '2026-05-20T07:00:00', tripId: 'T006', matched: true },
-  { txnId: 'FTX014', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', bank: 'HDFC Bank', plaza: 'Udaipur (Debari) Toll', highway: 'NH-48', amount: 315, timestamp: '2026-05-20T11:20:00', tripId: 'T006', matched: true },
-  { txnId: 'FTX015', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', bank: 'HDFC Bank', plaza: 'Vasai Creek Toll', highway: 'NH-8', amount: 315, timestamp: '2026-05-18T05:45:00', tripId: 'T008', matched: true },
-  { txnId: 'FTX016', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', bank: 'ICICI Bank', plaza: 'Atali Toll Plaza', highway: 'NH-19', amount: 210, timestamp: '2026-05-26T14:00:00', tripId: null, matched: false },
-  { txnId: 'FTX017', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', bank: 'ICICI Bank', plaza: 'Tumkur Bypass Toll', highway: 'NH-75', amount: 205, timestamp: '2026-05-26T09:15:00', tripId: null, matched: false },
-];
-
-const tyres = [
-  // V001 — Tata Prima 4028.S (odometer 145,230)
-  { id: 'TY001', serialNo: 'MRF-SM-2023-001', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Front Left', purchaseDate: '2023-04-10', purchasePrice: 28500, vendor: 'MRF Dealer Pune', invoiceNo: 'INV-MRF-4521', warrantyType: 'Both', warrantyKm: 120000, warrantyExpiry: '2026-04-09', kmAtFitment: 82000, expectedLifeKm: 120000, currentKmRun: 63230, treadDepth: 5.2, lastPressureCheck: '2026-05-20', lastRotationDate: '2026-03-15', retreads: 0, status: 'In Use', notes: 'Good condition. Pressure maintained at 120 PSI.' },
-  { id: 'TY002', serialNo: 'CEAT-WM-2023-002', brand: 'CEAT', model: 'WINMILE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Front Right', purchaseDate: '2023-04-10', purchasePrice: 26000, vendor: 'CEAT Authorised Pune', invoiceNo: 'INV-CEAT-8832', warrantyType: 'KM', warrantyKm: 100000, warrantyExpiry: null, kmAtFitment: 82000, expectedLifeKm: 100000, currentKmRun: 63230, treadDepth: 5.8, lastPressureCheck: '2026-05-20', lastRotationDate: '2026-03-15', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY003', serialNo: 'APL-EN-2024-003', brand: 'Apollo', model: 'ENDUMAX', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Spare', purchaseDate: '2024-01-05', purchasePrice: 27500, vendor: 'Apollo Tyres Pune', invoiceNo: 'INV-APL-1122', warrantyType: 'Both', warrantyKm: 120000, warrantyExpiry: '2027-01-04', kmAtFitment: 0, expectedLifeKm: 120000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-05-01', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'New spare. Kept inflated at 80 PSI.' },
-
-  // V002 — Ashok Leyland Boss 1415 (odometer 98,450)
-  { id: 'TY004', serialNo: 'JK-RG-2020-004', brand: 'JK Tyre', model: 'RANGER', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Front Left', purchaseDate: '2020-06-15', purchasePrice: 18000, vendor: 'JK Tyre Nashik', invoiceNo: 'INV-JK-3345', warrantyType: 'KM', warrantyKm: 80000, warrantyExpiry: null, kmAtFitment: 15000, expectedLifeKm: 80000, currentKmRun: 83450, treadDepth: 2.1, lastPressureCheck: '2026-05-10', lastRotationDate: '2025-12-01', retreads: 1, status: 'In Use', notes: '⚠ Tread depth critical — plan replacement within 5,000 km. Retreaded once in 2023.' },
-  { id: 'TY005', serialNo: 'MRF-SM-2022-005', brand: 'MRF', model: 'STEEL MUSCLE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Rear Left Outer', purchaseDate: '2022-03-20', purchasePrice: 22000, vendor: 'MRF Dealer Nashik', invoiceNo: 'INV-MRF-6670', warrantyType: 'Both', warrantyKm: 100000, warrantyExpiry: '2025-03-19', kmAtFitment: 42000, expectedLifeKm: 100000, currentKmRun: 56450, treadDepth: 6.4, lastPressureCheck: '2026-05-10', lastRotationDate: '2026-02-10', retreads: 0, status: 'In Use', notes: 'Warranty expired. Still in good condition.' },
-
-  // V003 — Mahindra Blazo X 35 (odometer 67,800)
-  { id: 'TY006', serialNo: 'BRG-R168-2022-006', brand: 'Bridgestone', model: 'R168', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Front Left', purchaseDate: '2022-09-01', purchasePrice: 32000, vendor: 'Bridgestone Ahmedabad', invoiceNo: 'INV-BRG-2210', warrantyType: 'Both', warrantyKm: 140000, warrantyExpiry: '2025-08-31', kmAtFitment: 5000, expectedLifeKm: 140000, currentKmRun: 62800, treadDepth: 7.5, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-04-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY007', serialNo: 'BRG-R168-2022-007', brand: 'Bridgestone', model: 'R168', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Rear Right Outer', purchaseDate: '2022-09-01', purchasePrice: 32000, vendor: 'Bridgestone Ahmedabad', invoiceNo: 'INV-BRG-2211', warrantyType: 'Both', warrantyKm: 140000, warrantyExpiry: '2025-08-31', kmAtFitment: 5000, expectedLifeKm: 140000, currentKmRun: 62800, treadDepth: 7.2, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-04-01', retreads: 0, status: 'In Use', notes: '' },
-
-  // V004 — Eicher Pro 6025 (odometer 210,000 — high mileage)
-  { id: 'TY008', serialNo: 'MRF-SM-2018-008', brand: 'MRF', model: 'STEEL MUSCLE', size: '11.00 R20', type: 'Tube Type', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', position: 'Front Left', purchaseDate: '2018-11-10', purchasePrice: 19000, vendor: 'MRF Dealer Delhi', invoiceNo: 'INV-MRF-0045', warrantyType: 'KM', warrantyKm: 80000, warrantyExpiry: null, kmAtFitment: 45000, expectedLifeKm: 80000, currentKmRun: 100000, treadDepth: 1.5, lastPressureCheck: '2026-04-01', lastRotationDate: '2025-06-01', retreads: 2, status: 'Condemned', notes: 'Condemned — tread below 2mm. Retreaded twice. To be scrapped.' },
-  { id: 'TY009', serialNo: 'CEAT-WM-2021-009', brand: 'CEAT', model: 'WINMILE', size: '11.00 R20', type: 'Tube Type', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', position: 'Rear Left Inner', purchaseDate: '2021-05-18', purchasePrice: 21000, vendor: 'CEAT Delhi', invoiceNo: 'INV-CEAT-5541', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 85000, expectedLifeKm: 90000, currentKmRun: 74000, treadDepth: 3.8, lastPressureCheck: '2026-04-01', lastRotationDate: '2025-12-10', retreads: 1, status: 'Retreaded', notes: 'Retreaded in Jan 2026. Running on retreaded life now.' },
-  { id: 'TY010', serialNo: 'APL-EN-2020-010', brand: 'Apollo', model: 'ENDUMAX', size: '11.00 R20', type: 'Tube Type', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', position: 'Rear Right Outer', purchaseDate: '2020-08-22', purchasePrice: 20500, vendor: 'Apollo Delhi', invoiceNo: 'INV-APL-3389', warrantyType: 'None', warrantyKm: 0, warrantyExpiry: null, kmAtFitment: 70000, expectedLifeKm: 80000, currentKmRun: 68000, treadDepth: 2.9, lastPressureCheck: '2026-04-01', lastRotationDate: '2025-09-01', retreads: 1, status: 'Repair', notes: 'Sent for vulcanizing — side wall cut. ETA 3 days.' },
-
-  // V005 — Volvo FH16 (odometer 32,100 — new vehicle, premium tyres)
-  { id: 'TY011', serialNo: 'MCH-XM-2023-011', brand: 'Michelin', model: 'X MULTI', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Front Left', purchaseDate: '2023-08-15', purchasePrice: 38000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9901', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 32100, treadDepth: 12.5, lastPressureCheck: '2026-06-01', lastRotationDate: '2026-03-01', retreads: 0, status: 'In Use', notes: 'Premium tyre — OEM fitment with Volvo.' },
-  { id: 'TY012', serialNo: 'MCH-XM-2023-012', brand: 'Michelin', model: 'X MULTI', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Spare', purchaseDate: '2023-08-15', purchasePrice: 38000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9902', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-05-15', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'Brand new spare. Never used.' },
-
-  // V006 — Tata Ultra 3525 (odometer 125,000)
-  { id: 'TY013', serialNo: 'MRF-SM-2021-013', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', position: 'Front Left', purchaseDate: '2021-09-10', purchasePrice: 27000, vendor: 'MRF Dealer Chennai', invoiceNo: 'INV-MRF-7712', warrantyType: 'Both', warrantyKm: 110000, warrantyExpiry: '2024-09-09', kmAtFitment: 10000, expectedLifeKm: 110000, currentKmRun: 115000, treadDepth: 3.1, lastPressureCheck: '2026-05-15', lastRotationDate: '2026-01-15', retreads: 0, status: 'In Use', notes: '⚠ Exceeding expected life. Plan replacement soon.' },
-  { id: 'TY014', serialNo: 'JK-RG-2022-014', brand: 'JK Tyre', model: 'RANGER', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', position: 'Rear Left Inner', purchaseDate: '2022-01-20', purchasePrice: 24500, vendor: 'JK Tyre Chennai', invoiceNo: 'INV-JK-4490', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 30000, expectedLifeKm: 90000, currentKmRun: 95000, treadDepth: 2.3, lastPressureCheck: '2026-05-15', lastRotationDate: '2025-11-01', retreads: 1, status: 'In Use', notes: '⚠ Near end of life. Retreaded once. Replace at next service.' },
-
-  // V007 — Ashok Leyland Captain 3518 (odometer 178,500)
-  { id: 'TY015', serialNo: 'CEAT-WM-2021-015', brand: 'CEAT', model: 'WINMILE STRONG', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Front Left', purchaseDate: '2021-04-05', purchasePrice: 26500, vendor: 'CEAT Jaipur', invoiceNo: 'INV-CEAT-2231', warrantyType: 'Both', warrantyKm: 110000, warrantyExpiry: '2024-04-04', kmAtFitment: 40000, expectedLifeKm: 110000, currentKmRun: 138500, treadDepth: 2.8, lastPressureCheck: '2026-05-21', lastRotationDate: '2026-01-05', retreads: 1, status: 'In Use', notes: '⚠ Critical — 138% of expected life. Immediate replacement needed.' },
-  { id: 'TY016', serialNo: 'APL-EN-2022-016', brand: 'Apollo', model: 'ENDUMAX', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Rear Right Outer', purchaseDate: '2022-07-12', purchasePrice: 27000, vendor: 'Apollo Jaipur', invoiceNo: 'INV-APL-6623', warrantyType: 'KM', warrantyKm: 110000, warrantyExpiry: null, kmAtFitment: 60000, expectedLifeKm: 110000, currentKmRun: 118500, treadDepth: 3.5, lastPressureCheck: '2026-05-21', lastRotationDate: '2025-10-15', retreads: 1, status: 'Retreaded', notes: 'Retreaded in Mar 2026.' },
-
-  // V008 — Force T1 4225 (odometer 89,300 — breakdown)
-  { id: 'TY017', serialNo: 'GDY-TS-2022-017', brand: 'Goodyear', model: 'TUFFSTEEL', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Front Left', purchaseDate: '2022-05-20', purchasePrice: 19500, vendor: 'Goodyear Lucknow', invoiceNo: 'INV-GDY-1145', warrantyType: 'Both', warrantyKm: 90000, warrantyExpiry: '2025-05-19', kmAtFitment: 10000, expectedLifeKm: 90000, currentKmRun: 79300, treadDepth: 4.2, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-02-20', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY018', serialNo: 'MRF-SM-2021-018', brand: 'MRF', model: 'STEEL MUSCLE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Rear Left Outer', purchaseDate: '2021-11-08', purchasePrice: 20000, vendor: 'MRF Dealer Lucknow', invoiceNo: 'INV-MRF-5530', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 22000, expectedLifeKm: 90000, currentKmRun: 67300, treadDepth: 5.1, lastPressureCheck: '2026-05-25', lastRotationDate: '2025-12-01', retreads: 0, status: 'Repair', notes: 'Puncture — sent for tube replacement. Possible cause of V008 breakdown.' },
-
-  // V001 — Tata Prima 4028.S — additional positions (odometer 145,230)
-  { id: 'TY019', serialNo: 'MRF-SM-2023-019', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Rear Left Outer', purchaseDate: '2023-04-10', purchasePrice: 28500, vendor: 'MRF Dealer Pune', invoiceNo: 'INV-MRF-4522', warrantyType: 'Both', warrantyKm: 120000, warrantyExpiry: '2026-04-09', kmAtFitment: 90000, expectedLifeKm: 120000, currentKmRun: 55230, treadDepth: 6.1, lastPressureCheck: '2026-05-20', lastRotationDate: '2026-03-15', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY020', serialNo: 'MRF-SM-2023-020', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Rear Left Inner', purchaseDate: '2023-04-10', purchasePrice: 28500, vendor: 'MRF Dealer Pune', invoiceNo: 'INV-MRF-4523', warrantyType: 'Both', warrantyKm: 120000, warrantyExpiry: '2026-04-09', kmAtFitment: 90000, expectedLifeKm: 120000, currentKmRun: 55230, treadDepth: 6.3, lastPressureCheck: '2026-05-20', lastRotationDate: '2026-03-15', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY021', serialNo: 'CEAT-WM-2023-021', brand: 'CEAT', model: 'WINMILE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Rear Right Outer', purchaseDate: '2023-04-10', purchasePrice: 26000, vendor: 'CEAT Authorised Pune', invoiceNo: 'INV-CEAT-8833', warrantyType: 'KM', warrantyKm: 100000, warrantyExpiry: null, kmAtFitment: 90000, expectedLifeKm: 100000, currentKmRun: 55230, treadDepth: 6.8, lastPressureCheck: '2026-05-20', lastRotationDate: '2026-03-15', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY022', serialNo: 'APL-EN-2023-022', brand: 'Apollo', model: 'ENDUMAX', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', position: 'Rear Right Inner', purchaseDate: '2023-04-10', purchasePrice: 27500, vendor: 'Apollo Tyres Pune', invoiceNo: 'INV-APL-1123', warrantyType: 'Both', warrantyKm: 120000, warrantyExpiry: '2027-04-09', kmAtFitment: 90000, expectedLifeKm: 120000, currentKmRun: 55230, treadDepth: 7.0, lastPressureCheck: '2026-05-20', lastRotationDate: '2026-03-15', retreads: 0, status: 'In Use', notes: 'Warranty active until 2027.' },
-
-  // V002 — Ashok Leyland Boss 1415 — additional positions (odometer 98,450)
-  { id: 'TY023', serialNo: 'JK-RG-2020-023', brand: 'JK Tyre', model: 'RANGER', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Front Right', purchaseDate: '2020-06-15', purchasePrice: 18000, vendor: 'JK Tyre Nashik', invoiceNo: 'INV-JK-3346', warrantyType: 'KM', warrantyKm: 80000, warrantyExpiry: null, kmAtFitment: 15000, expectedLifeKm: 80000, currentKmRun: 83450, treadDepth: 2.3, lastPressureCheck: '2026-05-10', lastRotationDate: '2025-12-01', retreads: 1, status: 'In Use', notes: '⚠ Tread critical. Pair with TY004 for replacement.' },
-  { id: 'TY024', serialNo: 'CEAT-WM-2022-024', brand: 'CEAT', model: 'WINMILE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Rear Left Inner', purchaseDate: '2022-03-20', purchasePrice: 20000, vendor: 'CEAT Nashik', invoiceNo: 'INV-CEAT-7712', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 42000, expectedLifeKm: 90000, currentKmRun: 56450, treadDepth: 5.9, lastPressureCheck: '2026-05-10', lastRotationDate: '2026-02-10', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY025', serialNo: 'CEAT-WM-2022-025', brand: 'CEAT', model: 'WINMILE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Rear Right Outer', purchaseDate: '2022-03-20', purchasePrice: 20000, vendor: 'CEAT Nashik', invoiceNo: 'INV-CEAT-7713', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 42000, expectedLifeKm: 90000, currentKmRun: 56450, treadDepth: 5.6, lastPressureCheck: '2026-05-10', lastRotationDate: '2026-02-10', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY026', serialNo: 'APL-EN-2022-026', brand: 'Apollo', model: 'ENDUMAX', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Rear Right Inner', purchaseDate: '2022-03-20', purchasePrice: 21000, vendor: 'Apollo Nashik', invoiceNo: 'INV-APL-3390', warrantyType: 'None', warrantyKm: 0, warrantyExpiry: null, kmAtFitment: 42000, expectedLifeKm: 90000, currentKmRun: 56450, treadDepth: 6.2, lastPressureCheck: '2026-05-10', lastRotationDate: '2026-02-10', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY027', serialNo: 'APL-EN-2024-027', brand: 'Apollo', model: 'ENDUMAX', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', position: 'Spare', purchaseDate: '2024-08-01', purchasePrice: 21000, vendor: 'Apollo Nashik', invoiceNo: 'INV-APL-8812', warrantyType: 'Both', warrantyKm: 90000, warrantyExpiry: '2027-08-01', kmAtFitment: 0, expectedLifeKm: 90000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-05-01', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'Purchased as replacement spare. Ready to fit.' },
-
-  // V003 — Mahindra Blazo X 35 — additional positions (odometer 67,800)
-  { id: 'TY028', serialNo: 'BRG-R168-2022-028', brand: 'Bridgestone', model: 'R168', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Front Right', purchaseDate: '2022-09-01', purchasePrice: 32000, vendor: 'Bridgestone Ahmedabad', invoiceNo: 'INV-BRG-2212', warrantyType: 'Both', warrantyKm: 140000, warrantyExpiry: '2025-08-31', kmAtFitment: 5000, expectedLifeKm: 140000, currentKmRun: 62800, treadDepth: 7.8, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-04-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY029', serialNo: 'MRF-SM-2022-029', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Rear Left Outer', purchaseDate: '2022-09-01', purchasePrice: 28000, vendor: 'MRF Dealer Ahmedabad', invoiceNo: 'INV-MRF-9910', warrantyType: 'KM', warrantyKm: 120000, warrantyExpiry: null, kmAtFitment: 5000, expectedLifeKm: 120000, currentKmRun: 62800, treadDepth: 8.1, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-04-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY030', serialNo: 'MRF-SM-2022-030', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Rear Left Inner', purchaseDate: '2022-09-01', purchasePrice: 28000, vendor: 'MRF Dealer Ahmedabad', invoiceNo: 'INV-MRF-9911', warrantyType: 'KM', warrantyKm: 120000, warrantyExpiry: null, kmAtFitment: 5000, expectedLifeKm: 120000, currentKmRun: 62800, treadDepth: 8.4, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-04-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY031', serialNo: 'BRG-R168-2022-031', brand: 'Bridgestone', model: 'R168', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Rear Right Inner', purchaseDate: '2022-09-01', purchasePrice: 32000, vendor: 'Bridgestone Ahmedabad', invoiceNo: 'INV-BRG-2213', warrantyType: 'Both', warrantyKm: 140000, warrantyExpiry: '2025-08-31', kmAtFitment: 5000, expectedLifeKm: 140000, currentKmRun: 62800, treadDepth: 7.6, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-04-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY032', serialNo: 'CEAT-WM-2024-032', brand: 'CEAT', model: 'WINMILE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', position: 'Spare', purchaseDate: '2024-03-10', purchasePrice: 26500, vendor: 'CEAT Ahmedabad', invoiceNo: 'INV-CEAT-6645', warrantyType: 'Both', warrantyKm: 100000, warrantyExpiry: '2027-03-09', kmAtFitment: 0, expectedLifeKm: 100000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-04-01', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'New spare. Inflated and stored.' },
-
-  // V005 — Volvo FH16 — additional positions (odometer 32,100 — all premium Michelin)
-  { id: 'TY033', serialNo: 'MCH-XM-2023-033', brand: 'Michelin', model: 'X MULTI', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Front Right', purchaseDate: '2023-08-15', purchasePrice: 38000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9903', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 32100, treadDepth: 12.8, lastPressureCheck: '2026-06-01', lastRotationDate: '2026-03-01', retreads: 0, status: 'In Use', notes: 'OEM fitment.' },
-  { id: 'TY034', serialNo: 'MCH-XM-2023-034', brand: 'Michelin', model: 'X MULTI D', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Rear Left Outer', purchaseDate: '2023-08-15', purchasePrice: 40000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9904', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 32100, treadDepth: 13.5, lastPressureCheck: '2026-06-01', lastRotationDate: '2026-03-01', retreads: 0, status: 'In Use', notes: 'Drive axle variant — deeper tread pattern.' },
-  { id: 'TY035', serialNo: 'MCH-XM-2023-035', brand: 'Michelin', model: 'X MULTI D', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Rear Left Inner', purchaseDate: '2023-08-15', purchasePrice: 40000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9905', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 32100, treadDepth: 13.3, lastPressureCheck: '2026-06-01', lastRotationDate: '2026-03-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY036', serialNo: 'MCH-XM-2023-036', brand: 'Michelin', model: 'X MULTI D', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Rear Right Outer', purchaseDate: '2023-08-15', purchasePrice: 40000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9906', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 32100, treadDepth: 13.1, lastPressureCheck: '2026-06-01', lastRotationDate: '2026-03-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY037', serialNo: 'MCH-XM-2023-037', brand: 'Michelin', model: 'X MULTI D', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', position: 'Rear Right Inner', purchaseDate: '2023-08-15', purchasePrice: 40000, vendor: 'Michelin Bangalore', invoiceNo: 'INV-MCH-9907', warrantyType: 'Both', warrantyKm: 160000, warrantyExpiry: '2028-08-14', kmAtFitment: 0, expectedLifeKm: 160000, currentKmRun: 32100, treadDepth: 13.4, lastPressureCheck: '2026-06-01', lastRotationDate: '2026-03-01', retreads: 0, status: 'In Use', notes: '' },
-
-  // V006 — Tata Ultra 3525 — additional positions (odometer 125,000)
-  { id: 'TY038', serialNo: 'APL-EN-2021-038', brand: 'Apollo', model: 'ENDUMAX', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', position: 'Front Right', purchaseDate: '2021-09-10', purchasePrice: 27000, vendor: 'Apollo Chennai', invoiceNo: 'INV-APL-7713', warrantyType: 'Both', warrantyKm: 110000, warrantyExpiry: '2024-09-09', kmAtFitment: 10000, expectedLifeKm: 110000, currentKmRun: 115000, treadDepth: 3.4, lastPressureCheck: '2026-05-15', lastRotationDate: '2026-01-15', retreads: 0, status: 'In Use', notes: '⚠ Exceeding expected life by 5,000 km. Schedule replacement.' },
-  { id: 'TY039', serialNo: 'MRF-SM-2023-039', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', position: 'Rear Left Outer', purchaseDate: '2023-02-15', purchasePrice: 27500, vendor: 'MRF Dealer Chennai', invoiceNo: 'INV-MRF-7715', warrantyType: 'KM', warrantyKm: 110000, warrantyExpiry: null, kmAtFitment: 65000, expectedLifeKm: 110000, currentKmRun: 60000, treadDepth: 7.2, lastPressureCheck: '2026-05-15', lastRotationDate: '2026-01-15', retreads: 0, status: 'In Use', notes: 'Good condition. Replaced after original tyre condemned.' },
-  { id: 'TY040', serialNo: 'CEAT-WM-2021-040', brand: 'CEAT', model: 'WINMILE STRONG', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', position: 'Rear Right Outer', purchaseDate: '2021-09-10', purchasePrice: 26000, vendor: 'CEAT Chennai', invoiceNo: 'INV-CEAT-5512', warrantyType: 'KM', warrantyKm: 100000, warrantyExpiry: null, kmAtFitment: 10000, expectedLifeKm: 100000, currentKmRun: 115000, treadDepth: 2.6, lastPressureCheck: '2026-05-15', lastRotationDate: '2025-11-01', retreads: 1, status: 'Retreaded', notes: 'Retreaded Feb 2026. On extended life — monitor closely.' },
-  { id: 'TY041', serialNo: 'JK-RG-2023-041', brand: 'JK Tyre', model: 'RANGER', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V006', regNumber: 'TN-01-KL-2345', position: 'Rear Right Inner', purchaseDate: '2023-02-15', purchasePrice: 24500, vendor: 'JK Tyre Chennai', invoiceNo: 'INV-JK-6612', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 65000, expectedLifeKm: 90000, currentKmRun: 60000, treadDepth: 7.6, lastPressureCheck: '2026-05-15', lastRotationDate: '2026-01-15', retreads: 0, status: 'In Use', notes: '' },
-
-  // V007 — Ashok Leyland Captain 3518 — additional positions (odometer 178,500)
-  { id: 'TY042', serialNo: 'CEAT-WM-2021-042', brand: 'CEAT', model: 'WINMILE STRONG', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Front Right', purchaseDate: '2021-04-05', purchasePrice: 26500, vendor: 'CEAT Jaipur', invoiceNo: 'INV-CEAT-2232', warrantyType: 'Both', warrantyKm: 110000, warrantyExpiry: '2024-04-04', kmAtFitment: 40000, expectedLifeKm: 110000, currentKmRun: 138500, treadDepth: 2.5, lastPressureCheck: '2026-05-21', lastRotationDate: '2026-01-05', retreads: 1, status: 'In Use', notes: '⚠ Critical — immediate replacement needed. Retreaded once in 2024.' },
-  { id: 'TY043', serialNo: 'APL-EN-2022-043', brand: 'Apollo', model: 'ENDUMAX', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Rear Left Outer', purchaseDate: '2022-07-12', purchasePrice: 27000, vendor: 'Apollo Jaipur', invoiceNo: 'INV-APL-6624', warrantyType: 'KM', warrantyKm: 110000, warrantyExpiry: null, kmAtFitment: 60000, expectedLifeKm: 110000, currentKmRun: 118500, treadDepth: 3.2, lastPressureCheck: '2026-05-21', lastRotationDate: '2025-10-15', retreads: 1, status: 'In Use', notes: 'On retreaded life.' },
-  { id: 'TY044', serialNo: 'MRF-SM-2022-044', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Rear Left Inner', purchaseDate: '2022-07-12', purchasePrice: 28000, vendor: 'MRF Dealer Jaipur', invoiceNo: 'INV-MRF-8823', warrantyType: 'KM', warrantyKm: 120000, warrantyExpiry: null, kmAtFitment: 60000, expectedLifeKm: 120000, currentKmRun: 118500, treadDepth: 4.1, lastPressureCheck: '2026-05-21', lastRotationDate: '2025-10-15', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY045', serialNo: 'JK-RG-2022-045', brand: 'JK Tyre', model: 'RANGER', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Rear Right Inner', purchaseDate: '2022-07-12', purchasePrice: 24500, vendor: 'JK Tyre Jaipur', invoiceNo: 'INV-JK-5531', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 60000, expectedLifeKm: 90000, currentKmRun: 118500, treadDepth: 2.2, lastPressureCheck: '2026-05-21', lastRotationDate: '2025-06-01', retreads: 2, status: 'Condemned', notes: 'Condemned — 2 retreads, tread at limit. To be scrapped immediately.' },
-  { id: 'TY046', serialNo: 'MRF-SM-2025-046', brand: 'MRF', model: 'STEEL MUSCLE', size: '295/80 R22.5', type: 'Tubeless', vehicleId: 'V007', regNumber: 'RJ-14-MN-6789', position: 'Spare', purchaseDate: '2025-01-10', purchasePrice: 29000, vendor: 'MRF Dealer Jaipur', invoiceNo: 'INV-MRF-0012', warrantyType: 'Both', warrantyKm: 120000, warrantyExpiry: '2028-01-09', kmAtFitment: 0, expectedLifeKm: 120000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-05-10', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'New spare. Ready to replace TY045 immediately.' },
-
-  // V008 — Force T1 4225 — additional positions (odometer 89,300)
-  { id: 'TY047', serialNo: 'GDY-TS-2022-047', brand: 'Goodyear', model: 'TUFFSTEEL', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Front Right', purchaseDate: '2022-05-20', purchasePrice: 19500, vendor: 'Goodyear Lucknow', invoiceNo: 'INV-GDY-1146', warrantyType: 'Both', warrantyKm: 90000, warrantyExpiry: '2025-05-19', kmAtFitment: 10000, expectedLifeKm: 90000, currentKmRun: 79300, treadDepth: 4.5, lastPressureCheck: '2026-05-25', lastRotationDate: '2026-02-20', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY048', serialNo: 'MRF-SM-2022-048', brand: 'MRF', model: 'STEEL MUSCLE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Rear Right Outer', purchaseDate: '2022-05-20', purchasePrice: 20000, vendor: 'MRF Dealer Lucknow', invoiceNo: 'INV-MRF-5531', warrantyType: 'KM', warrantyKm: 90000, warrantyExpiry: null, kmAtFitment: 22000, expectedLifeKm: 90000, currentKmRun: 67300, treadDepth: 5.4, lastPressureCheck: '2026-05-25', lastRotationDate: '2025-12-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY049', serialNo: 'CEAT-WM-2022-049', brand: 'CEAT', model: 'WINMILE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Rear Left Inner', purchaseDate: '2022-05-20', purchasePrice: 19800, vendor: 'CEAT Lucknow', invoiceNo: 'INV-CEAT-9901', warrantyType: 'KM', warrantyKm: 85000, warrantyExpiry: null, kmAtFitment: 22000, expectedLifeKm: 85000, currentKmRun: 67300, treadDepth: 5.7, lastPressureCheck: '2026-05-25', lastRotationDate: '2025-12-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY050', serialNo: 'CEAT-WM-2022-050', brand: 'CEAT', model: 'WINMILE', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Rear Right Inner', purchaseDate: '2022-05-20', purchasePrice: 19800, vendor: 'CEAT Lucknow', invoiceNo: 'INV-CEAT-9902', warrantyType: 'KM', warrantyKm: 85000, warrantyExpiry: null, kmAtFitment: 22000, expectedLifeKm: 85000, currentKmRun: 67300, treadDepth: 5.5, lastPressureCheck: '2026-05-25', lastRotationDate: '2025-12-01', retreads: 0, status: 'In Use', notes: '' },
-  { id: 'TY051', serialNo: 'APL-EN-2025-051', brand: 'Apollo', model: 'ENDUMAX', size: '10.00 R20', type: 'Tube Type', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', position: 'Spare', purchaseDate: '2025-03-01', purchasePrice: 21500, vendor: 'Apollo Lucknow', invoiceNo: 'INV-APL-0041', warrantyType: 'Both', warrantyKm: 90000, warrantyExpiry: '2028-03-01', kmAtFitment: 0, expectedLifeKm: 90000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-05-01', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'Purchased after TY018 went into repair. Ready to fit.' },
-
-  // V004 — Eicher Pro 6025 — additional positions (very high mileage)
-  { id: 'TY052', serialNo: 'JK-RG-2019-052', brand: 'JK Tyre', model: 'RANGER', size: '11.00 R20', type: 'Tube Type', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', position: 'Front Right', purchaseDate: '2019-10-15', purchasePrice: 17500, vendor: 'JK Tyre Delhi', invoiceNo: 'INV-JK-0012', warrantyType: 'KM', warrantyKm: 80000, warrantyExpiry: null, kmAtFitment: 35000, expectedLifeKm: 80000, currentKmRun: 110000, treadDepth: 1.8, lastPressureCheck: '2026-05-01', lastRotationDate: '2025-09-01', retreads: 2, status: 'Condemned', notes: 'Condemned. 2 retreads. Replace before vehicle returns to service.' },
-  { id: 'TY053', serialNo: 'MRF-SM-2024-053', brand: 'MRF', model: 'STEEL MUSCLE', size: '11.00 R20', type: 'Tube Type', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', position: 'Rear Right Inner', purchaseDate: '2024-06-01', purchasePrice: 23000, vendor: 'MRF Dealer Delhi', invoiceNo: 'INV-MRF-1100', warrantyType: 'Both', warrantyKm: 110000, warrantyExpiry: '2027-06-01', kmAtFitment: 175000, expectedLifeKm: 110000, currentKmRun: 35000, treadDepth: 11.5, lastPressureCheck: '2026-04-01', lastRotationDate: null, retreads: 0, status: 'In Use', notes: 'Newly fitted — Jun 2024 replacement. Warranty active.' },
-  { id: 'TY054', serialNo: 'APL-EN-2024-054', brand: 'Apollo', model: 'ENDUMAX', size: '11.00 R20', type: 'Tube Type', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', position: 'Spare', purchaseDate: '2024-06-01', purchasePrice: 22000, vendor: 'Apollo Delhi', invoiceNo: 'INV-APL-1101', warrantyType: 'Both', warrantyKm: 100000, warrantyExpiry: '2027-06-01', kmAtFitment: 0, expectedLifeKm: 100000, currentKmRun: 0, treadDepth: 16.0, lastPressureCheck: '2026-04-01', lastRotationDate: null, retreads: 0, status: 'Spare', notes: 'New spare purchased during Jun 2024 maintenance.' },
-];
-
-// Transaction log for TP (Third-Party) verification checks (RC/DL/PAN via Parivahan/NSDL)
-const verificationLog = [];
-
-// Spare parts inventory — current stock levels per item
-const spareParts = [
-  { id: 'SP001', partNo: 'ENG-OF-001', name: 'Oil Filter',           category: 'Engine',       unit: 'Pcs',  currentStock: 18,  reorderLevel: 5,  unitPrice: 450,   vendor: 'Mahindra Spares Pune',     location: 'Bin-A1' },
-  { id: 'SP002', partNo: 'ENG-AF-002', name: 'Air Filter',           category: 'Engine',       unit: 'Pcs',  currentStock: 14,  reorderLevel: 5,  unitPrice: 850,   vendor: 'Mahindra Spares Pune',     location: 'Bin-A2' },
-  { id: 'SP003', partNo: 'ENG-EO-003', name: 'Engine Oil 15W-40',    category: 'Engine',       unit: 'Litre',currentStock: 122, reorderLevel: 40, unitPrice: 320,   vendor: 'Castrol Distributor Pune', location: 'Bin-A3' },
-  { id: 'SP004', partNo: 'BRK-BP-004', name: 'Brake Pads (Set of 4)',category: 'Brakes',       unit: 'Set',  currentStock: 6,   reorderLevel: 2,  unitPrice: 4200,  vendor: 'Bosch Auto Parts Mumbai',  location: 'Bin-B1' },
-  { id: 'SP005', partNo: 'BRK-BF-005', name: 'Brake Fluid (1L)',     category: 'Brakes',       unit: 'Litre',currentStock: 10,  reorderLevel: 4,  unitPrice: 280,   vendor: 'Bosch Auto Parts Mumbai',  location: 'Bin-B2' },
-  { id: 'SP006', partNo: 'ENG-CH-006', name: 'Coolant Hose',         category: 'Engine',       unit: 'Pcs',  currentStock: 1,   reorderLevel: 3,  unitPrice: 1200,  vendor: 'Tata Motors Genuine Parts',location: 'Bin-A4' },
-  { id: 'SP007', partNo: 'ENG-TH-007', name: 'Thermostat',           category: 'Engine',       unit: 'Pcs',  currentStock: 0,   reorderLevel: 2,  unitPrice: 950,   vendor: 'Tata Motors Genuine Parts',location: 'Bin-A5' },
-  { id: 'SP008', partNo: 'TRN-CP-008', name: 'Clutch Plate',         category: 'Transmission', unit: 'Pcs',  currentStock: 3,   reorderLevel: 2,  unitPrice: 8500,  vendor: 'LUK Clutch Distributor',   location: 'Bin-C1' },
-  { id: 'SP009', partNo: 'ELE-HL-009', name: 'Headlight Assembly',   category: 'Electrical',   unit: 'Pcs',  currentStock: 5,   reorderLevel: 2,  unitPrice: 3200,  vendor: 'Lucas TVS Distributor',    location: 'Bin-D1' },
-  { id: 'SP010', partNo: 'ENG-FB-010', name: 'Fan Belt',             category: 'Engine',       unit: 'Pcs',  currentStock: 12,  reorderLevel: 5,  unitPrice: 650,   vendor: 'Gates Belts India',        location: 'Bin-A6' },
-  { id: 'SP011', partNo: 'ELE-AC-011', name: 'AC Filter',            category: 'Electrical',   unit: 'Pcs',  currentStock: 8,   reorderLevel: 3,  unitPrice: 550,   vendor: 'Mahindra Spares Pune',     location: 'Bin-D2' },
-  { id: 'SP012', partNo: 'ELE-BT-012', name: 'Battery 12V 150Ah',    category: 'Electrical',   unit: 'Pcs',  currentStock: 4,   reorderLevel: 2,  unitPrice: 9500,  vendor: 'Exide Battery Distributor',location: 'Bin-D3' },
-  { id: 'SP013', partNo: 'ELE-WB-013', name: 'Wiper Blade',          category: 'Electrical',   unit: 'Pair', currentStock: 9,   reorderLevel: 4,  unitPrice: 400,   vendor: 'Bosch Auto Parts Mumbai',  location: 'Bin-D4' },
-  { id: 'SP014', partNo: 'ENG-TC-014', name: 'Turbocharger Unit',    category: 'Engine',       unit: 'Pcs',  currentStock: 0,   reorderLevel: 1,  unitPrice: 45000, vendor: 'Garrett Turbo Distributor',location: 'Bin-A7' },
-];
-
-// Spare parts ledger — chronological IN (purchase/restock) and OUT (issued to a vehicle) transactions, newest first
-const spareLedger = [
-  { id: 'SL0001', partId: 'SP014', partName: 'Turbocharger Unit', type: 'OUT', quantity: 1, date: '2026-05-25', vehicleId: 'V008', regNumber: 'UP-80-OP-1122', reference: 'M004', vendor: null, unitPrice: 45000, notes: 'Breakdown repair — turbocharger replacement', balanceAfter: 0, performedBy: 'Admin User' },
-  { id: 'SL0002', partId: 'SP007', partName: 'Thermostat', type: 'OUT', quantity: 1, date: '2026-05-24', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', reference: 'M001', vendor: null, unitPrice: 950, notes: 'Engine overheating — coolant leak repair', balanceAfter: 0, performedBy: 'Admin User' },
-  { id: 'SL0003', partId: 'SP006', partName: 'Coolant Hose', type: 'OUT', quantity: 1, date: '2026-05-24', vehicleId: 'V004', regNumber: 'DL-01-GH-3456', reference: 'M001', vendor: null, unitPrice: 1200, notes: 'Engine overheating — coolant leak repair', balanceAfter: 1, performedBy: 'Admin User' },
-  { id: 'SL0004', partId: 'SP011', partName: 'AC Filter', type: 'OUT', quantity: 1, date: '2026-05-01', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', reference: 'M006', vendor: null, unitPrice: 550, notes: 'Preventive maintenance service', balanceAfter: 8, performedBy: 'Admin User' },
-  { id: 'SL0005', partId: 'SP003', partName: 'Engine Oil 15W-40', type: 'OUT', quantity: 4, date: '2026-05-01', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', reference: 'M006', vendor: null, unitPrice: 320, notes: 'Preventive maintenance service', balanceAfter: 122, performedBy: 'Admin User' },
-  { id: 'SL0006', partId: 'SP001', partName: 'Oil Filter', type: 'OUT', quantity: 1, date: '2026-05-01', vehicleId: 'V005', regNumber: 'KA-09-IJ-7890', reference: 'M006', vendor: null, unitPrice: 450, notes: 'Preventive maintenance service', balanceAfter: 18, performedBy: 'Admin User' },
-  { id: 'SL0007', partId: 'SP003', partName: 'Engine Oil 15W-40', type: 'OUT', quantity: 4, date: '2026-03-15', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', reference: 'M002', vendor: null, unitPrice: 320, notes: 'Preventive maintenance service', balanceAfter: 126, performedBy: 'Admin User' },
-  { id: 'SL0008', partId: 'SP002', partName: 'Air Filter', type: 'OUT', quantity: 1, date: '2026-03-15', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', reference: 'M002', vendor: null, unitPrice: 850, notes: 'Preventive maintenance service', balanceAfter: 14, performedBy: 'Admin User' },
-  { id: 'SL0009', partId: 'SP001', partName: 'Oil Filter', type: 'OUT', quantity: 1, date: '2026-03-15', vehicleId: 'V001', regNumber: 'MH-12-AB-1234', reference: 'M002', vendor: null, unitPrice: 450, notes: 'Preventive maintenance service', balanceAfter: 19, performedBy: 'Admin User' },
-  { id: 'SL0010', partId: 'SP005', partName: 'Brake Fluid (1L)', type: 'OUT', quantity: 1, date: '2026-02-20', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', reference: 'M003', vendor: null, unitPrice: 280, notes: 'Preventive maintenance service', balanceAfter: 10, performedBy: 'Admin User' },
-  { id: 'SL0011', partId: 'SP004', partName: 'Brake Pads (Set of 4)', type: 'OUT', quantity: 1, date: '2026-02-20', vehicleId: 'V002', regNumber: 'MH-12-CD-5678', reference: 'M003', vendor: null, unitPrice: 4200, notes: 'Preventive maintenance service', balanceAfter: 6, performedBy: 'Admin User' },
-  { id: 'SL0012', partId: 'SP001', partName: 'Oil Filter', type: 'IN', quantity: 20, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Mahindra Spares Pune', unitPrice: 450, notes: 'Initial stock entry', balanceAfter: 20, performedBy: 'Admin User' },
-  { id: 'SL0013', partId: 'SP002', partName: 'Air Filter', type: 'IN', quantity: 15, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Mahindra Spares Pune', unitPrice: 850, notes: 'Initial stock entry', balanceAfter: 15, performedBy: 'Admin User' },
-  { id: 'SL0014', partId: 'SP003', partName: 'Engine Oil 15W-40', type: 'IN', quantity: 130, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Castrol Distributor Pune', unitPrice: 320, notes: 'Initial stock entry', balanceAfter: 130, performedBy: 'Admin User' },
-  { id: 'SL0015', partId: 'SP004', partName: 'Brake Pads (Set of 4)', type: 'IN', quantity: 7, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Bosch Auto Parts Mumbai', unitPrice: 4200, notes: 'Initial stock entry', balanceAfter: 7, performedBy: 'Admin User' },
-  { id: 'SL0016', partId: 'SP005', partName: 'Brake Fluid (1L)', type: 'IN', quantity: 11, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Bosch Auto Parts Mumbai', unitPrice: 280, notes: 'Initial stock entry', balanceAfter: 11, performedBy: 'Admin User' },
-  { id: 'SL0017', partId: 'SP006', partName: 'Coolant Hose', type: 'IN', quantity: 2, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Tata Motors Genuine Parts', unitPrice: 1200, notes: 'Initial stock entry', balanceAfter: 2, performedBy: 'Admin User' },
-  { id: 'SL0018', partId: 'SP007', partName: 'Thermostat', type: 'IN', quantity: 1, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Tata Motors Genuine Parts', unitPrice: 950, notes: 'Initial stock entry', balanceAfter: 1, performedBy: 'Admin User' },
-  { id: 'SL0019', partId: 'SP008', partName: 'Clutch Plate', type: 'IN', quantity: 3, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'LUK Clutch Distributor', unitPrice: 8500, notes: 'Initial stock entry', balanceAfter: 3, performedBy: 'Admin User' },
-  { id: 'SL0020', partId: 'SP009', partName: 'Headlight Assembly', type: 'IN', quantity: 5, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Lucas TVS Distributor', unitPrice: 3200, notes: 'Initial stock entry', balanceAfter: 5, performedBy: 'Admin User' },
-  { id: 'SL0021', partId: 'SP010', partName: 'Fan Belt', type: 'IN', quantity: 12, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Gates Belts India', unitPrice: 650, notes: 'Initial stock entry', balanceAfter: 12, performedBy: 'Admin User' },
-  { id: 'SL0022', partId: 'SP011', partName: 'AC Filter', type: 'IN', quantity: 9, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Mahindra Spares Pune', unitPrice: 550, notes: 'Initial stock entry', balanceAfter: 9, performedBy: 'Admin User' },
-  { id: 'SL0023', partId: 'SP012', partName: 'Battery 12V 150Ah', type: 'IN', quantity: 4, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Exide Battery Distributor', unitPrice: 9500, notes: 'Initial stock entry', balanceAfter: 4, performedBy: 'Admin User' },
-  { id: 'SL0024', partId: 'SP013', partName: 'Wiper Blade', type: 'IN', quantity: 9, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Bosch Auto Parts Mumbai', unitPrice: 400, notes: 'Initial stock entry', balanceAfter: 9, performedBy: 'Admin User' },
-  { id: 'SL0025', partId: 'SP014', partName: 'Turbocharger Unit', type: 'IN', quantity: 1, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Garrett Turbo Distributor', unitPrice: 45000, notes: 'Initial stock entry', balanceAfter: 1, performedBy: 'Admin User' },
-];
-
-// Loaded from the database at boot via loadFromDatabase() — starts empty.
-const consignments = [];
-
-module.exports = { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments };
+module.exports = {
+  vehicles, drivers, trips,
+  fuelEntries, maintenanceRecords, complianceRecords, consignments,
+  alerts, users, costings, analytics,
+  tollRoutes, tollReconciliations,
+  pettyCash, fastagAccounts, fastagTransactions,
+  tyres, verificationLog, spareParts, spareLedger,
+  payoutPool,
+};
