@@ -32,6 +32,7 @@ interface Driver {
   supervisorName: string;
   supervisorHistory: SupervisorRecord[];
   bankDetails: BankDetails;
+  photo?: string | null;
 }
 
 const EMPTY_BANK: BankDetails = { bankName: '', accountNumber: '', ifsc: '', upiId: '' };
@@ -52,6 +53,16 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
       {children}
+    </div>
+  );
+}
+
+function DriverAvatar({ name, photo, size = 'sm' }: { name: string; photo?: string | null; size?: 'sm' | 'lg' }) {
+  const dim = size === 'sm' ? 'w-8 h-8 text-sm' : 'w-12 h-12 text-xl';
+  if (photo) return <img src={photo} alt={name} className={`${dim} rounded-full object-cover flex-shrink-0`} />;
+  return (
+    <div className={`${dim} rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold flex-shrink-0`}>
+      {name.charAt(0)}
     </div>
   );
 }
@@ -149,7 +160,11 @@ function DriversPageInner() {
   const [showEditBank, setShowEditBank] = useState(false);
   const [bankForm, setBankForm] = useState<BankDetails>(EMPTY_BANK);
   const [bankSaving, setBankSaving] = useState(false);
+  const [addPhotoPreview, setAddPhotoPreview] = useState<string | null>(null);
+  const [photoSaving, setPhotoSaving] = useState(false);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const addPhotoRef = useRef<HTMLInputElement>(null);
+  const detailPhotoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     api.drivers().then(setDrivers).catch(console.error).finally(() => setLoading(false));
@@ -179,23 +194,43 @@ function DriversPageInner() {
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await new Promise(r => setTimeout(r, 600));
-    const { bankName, accountNumber, ifsc, upiId, ...personalForm } = form;
-    const newDriver: Driver = {
-      ...personalForm,
-      id: 'D' + (drivers.length + 1).toString().padStart(3, '0'),
-      status: 'Active', assignedVehicle: '',
-      fuelScore: 0, safetyScore: 0, onTimeDelivery: 0, customerRating: 0,
-      totalTrips: 0, totalKm: 0, violations: 0, attendance: 100,
-      supervisorHistory: [{ supervisor: form.supervisorName || 'Self', fromMonth: currentYM(), toMonth: null }],
-      bankDetails: { bankName, accountNumber, ifsc, upiId },
+    try {
+      const newDriver: Driver = await (api as any).addDriver({ ...form, photo: addPhotoPreview });
+      setDrivers(d => [newDriver, ...d]);
+      setForm(EMPTY_FORM);
+      setAddPhotoPreview(null);
+      setShowAdd(false);
+      setSuccessMsg(`Driver ${form.name} added successfully!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  }
+
+  function handleAddPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => setAddPhotoPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleDetailPhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!selected) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoSaving(true);
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      const photo = ev.target?.result as string;
+      try {
+        await (api as any).updateDriverPhoto(selected.id, photo);
+        const updated = { ...selected, photo };
+        setDrivers(ds => ds.map(d => d.id === selected.id ? updated : d));
+        setSelected(updated);
+      } catch (err) { console.error(err); }
+      finally { setPhotoSaving(false); }
     };
-    setDrivers(d => [newDriver, ...d]);
-    setForm(EMPTY_FORM);
-    setShowAdd(false);
-    setSaving(false);
-    setSuccessMsg(`Driver ${form.name} added successfully!`);
-    setTimeout(() => setSuccessMsg(''), 3000);
+    reader.readAsDataURL(file);
   }
 
   async function handleSaveBankDetails() {
@@ -343,9 +378,7 @@ function DriversPageInner() {
                   <tr key={d.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                          {d.name.charAt(0)}
-                        </div>
+                        <DriverAvatar name={d.name} photo={d.photo} size="sm" />
                         <div className="text-sm font-medium text-slate-800 whitespace-nowrap">{d.name}</div>
                       </div>
                     </td>
@@ -401,11 +434,30 @@ function DriversPageInner() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">Add New Driver</h3>
-              <button onClick={() => setShowAdd(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={() => { setShowAdd(false); setAddPhotoPreview(null); }} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <form onSubmit={handleAdd} className="p-6 space-y-5">
+              {/* Photo upload */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="relative group cursor-pointer" onClick={() => addPhotoRef.current?.click()}>
+                  {addPhotoPreview
+                    ? <img src={addPhotoPreview} alt="Preview" className="w-20 h-20 rounded-full object-cover" />
+                    : <div className="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-1">
+                        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span className="text-xs text-slate-400">Photo</span>
+                      </div>
+                  }
+                  {addPhotoPreview && (
+                    <div className="absolute inset-0 rounded-full bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
+                    </div>
+                  )}
+                  <input ref={addPhotoRef} type="file" accept="image/*" className="hidden" onChange={handleAddPhotoChange} />
+                </div>
+                <span className="text-xs text-slate-400">Click to upload photo (optional)</span>
+              </div>
               <div>
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Personal Details</p>
                 <div className="grid grid-cols-2 gap-4">
@@ -517,7 +569,16 @@ function DriversPageInner() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-xl w-full p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xl font-bold">{selected.name.charAt(0)}</div>
+                <div className="relative group cursor-pointer" onClick={() => detailPhotoRef.current?.click()} title="Click to change photo">
+                  <DriverAvatar name={selected.name} photo={selected.photo} size="lg" />
+                  <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {photoSaving
+                      ? <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                      : <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    }
+                  </div>
+                  <input ref={detailPhotoRef} type="file" accept="image/*" className="hidden" onChange={handleDetailPhotoChange} />
+                </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-800">{selected.name}</h3>
                   <p className="text-sm text-slate-500">{selected.licenseCategory} · {selected.experience} years exp.</p>

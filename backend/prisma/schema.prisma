@@ -78,6 +78,7 @@ model Driver {
   supervisorName    String
   supervisorHistory Json
   bankDetails       Json    @default("{}")
+  photo             String?
 }
 
 model Trip {

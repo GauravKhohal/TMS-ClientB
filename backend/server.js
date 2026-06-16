@@ -288,6 +288,59 @@ app.get('/api/drivers/:id', auth, (req, res) => {
   res.json({ ...d, trips: driverTrips });
 });
 
+app.post('/api/drivers', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
+  const { name, phone, altPhone, dob, address, dlNumber, licenseCategory, licenseExpiry,
+          experience, emergencyContact, salary, aadhaarNumber, panNumber, supervisorName, photo } = req.body;
+  if (!name || !phone || !dob) return res.status(400).json({ error: 'Name, phone, and DOB are required' });
+  const ymNow = new Date().toISOString().slice(0, 7);
+  const newDriver = {
+    id: 'D' + Date.now(), name, phone, altPhone: altPhone || '', dob,
+    address: address || '', dlNumber: dlNumber || '', licenseCategory: licenseCategory || 'HMV',
+    licenseExpiry: licenseExpiry || '', experience: parseInt(experience) || 0,
+    emergencyContact: emergencyContact || '', salary: parseInt(salary) || 0, advance: 0,
+    aadhaarNumber: aadhaarNumber || '', panNumber: panNumber || '',
+    supervisorName: supervisorName || 'Self',
+    supervisorHistory: [{ supervisor: supervisorName || 'Self', fromMonth: ymNow, toMonth: null }],
+    bankDetails: { bankName: '', accountNumber: '', ifsc: '', upiId: '' },
+    status: 'Active', assignedVehicle: null,
+    fuelScore: 0, safetyScore: 0, onTimeDelivery: 0, customerRating: 0,
+    totalTrips: 0, totalKm: 0, violations: 0, attendance: 100,
+    dlVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (Sarathi)', details: null },
+    panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null },
+    photo: photo || null,
+  };
+  drivers.unshift(newDriver);
+  logAudit(req, 'driver.add', { driverId: newDriver.id, name: newDriver.name });
+  try {
+    await prisma.driver.create({ data: {
+      id: newDriver.id, name: newDriver.name, phone: newDriver.phone, altPhone: newDriver.altPhone,
+      dob: newDriver.dob, address: newDriver.address, dlNumber: newDriver.dlNumber,
+      licenseCategory: newDriver.licenseCategory, licenseExpiry: newDriver.licenseExpiry,
+      experience: newDriver.experience, emergencyContact: newDriver.emergencyContact,
+      salary: newDriver.salary, advance: 0, aadhaarNumber: newDriver.aadhaarNumber,
+      panNumber: newDriver.panNumber, supervisorName: newDriver.supervisorName,
+      supervisorHistory: newDriver.supervisorHistory, bankDetails: newDriver.bankDetails,
+      status: 'Active', assignedVehicle: null,
+      fuelScore: 0, safetyScore: 0, onTimeDelivery: 0, customerRating: 0,
+      totalTrips: 0, totalKm: 0, violations: 0, attendance: 100,
+      dlVerification: newDriver.dlVerification, panVerification: newDriver.panVerification,
+      photo: newDriver.photo,
+    }});
+  } catch (e) { console.error('Failed to persist driver:', e.message); }
+  res.json(newDriver);
+});
+
+app.patch('/api/drivers/:id/photo', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
+  const driver = drivers.find(d => d.id === req.params.id);
+  if (!driver) return res.status(404).json({ error: 'Driver not found' });
+  const { photo } = req.body;
+  driver.photo = photo || null;
+  try { await prisma.driver.update({ where: { id: driver.id }, data: { photo: driver.photo } }); }
+  catch (e) { console.error('Failed to persist driver photo:', e.message); }
+  logAudit(req, 'driver.photo.update', { driverId: driver.id, driverName: driver.name });
+  res.json({ success: true, photo: driver.photo });
+});
+
 app.patch('/api/drivers/:id/bank-details', auth, requireRole('Accountant', 'Fleet Manager'), async (req, res) => {
   const driver = drivers.find(d => d.id === req.params.id);
   if (!driver) return res.status(404).json({ error: 'Driver not found' });
