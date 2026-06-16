@@ -180,6 +180,7 @@ function TripsPageInner() {
 
   // Consignment Note
   const [cnModal, setCnModal]   = useState<Trip | null>(null);
+  const [showCnCreate, setShowCnCreate] = useState(false);
   const [cnForm, setCnForm]     = useState(EMPTY_CN());
   const [cnSaving, setCnSaving] = useState(false);
   const [cnView, setCnView]     = useState<Consignment | null>(null);
@@ -377,31 +378,44 @@ function TripsPageInner() {
   }
 
   function openCnGenerate(trip: Trip) {
-    const vehicle = vehicleOptions.find(v => v.id === trip.vehicleId);
     setCnForm({
       ...EMPTY_CN(),
-      againstNo:   trip.voucherNo,
-      vehicleId:   trip.vehicleId,
-      source:      trip.origin,
-      destination: trip.destination,
-      consignor:   trip.customer,
+      againstNo:    trip.voucherNo,
+      vehicleId:    trip.vehicleId,
+      source:       trip.origin,
+      destination:  trip.destination,
+      consignor:    trip.customer,
       billingParty: trip.customer,
-      godown:      trip.origin,
-      items:       [EMPTY_CN_ITEM()],
+      godown:       trip.origin,
+      items:        [EMPTY_CN_ITEM()],
     });
     setCnModal(trip);
+    setShowCnCreate(true);
+  }
+
+  function openCnStandalone() {
+    setCnForm(EMPTY_CN());
+    setCnModal(null);
+    setShowCnCreate(true);
+  }
+
+  function closeCnCreate() {
+    setShowCnCreate(false);
+    setCnModal(null);
   }
 
   async function handleCnSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!cnModal) return;
     setCnSaving(true);
     try {
-      const newCn: Consignment = await api.createConsignment({ ...cnForm, againstNo: cnModal.voucherNo });
+      const payload = cnModal
+        ? { ...cnForm, againstNo: cnModal.voucherNo }
+        : cnForm;
+      const newCn: Consignment = await api.createConsignment(payload);
       setConsignments(prev => [newCn, ...prev]);
-      setTrips(t => t.map(x => x.id === cnModal.id ? { ...x, cnNumber: newCn.cnNumber, cnDate: newCn.cnDate } : x));
-      setCnModal(null);
-      notify(`Consignment Note ${newCn.cnNumber} created for ${cnModal.voucherNo}`);
+      if (cnModal) setTrips(t => t.map(x => x.id === cnModal.id ? { ...x, cnNumber: newCn.cnNumber, cnDate: newCn.cnDate } : x));
+      closeCnCreate();
+      notify(`Consignment Note ${newCn.cnNumber} created`);
     } catch { notify('Failed to create Consignment Note'); }
     setCnSaving(false);
   }
@@ -770,6 +784,11 @@ function TripsPageInner() {
                 <h3 className="text-sm font-bold text-slate-800">Consignment / List</h3>
                 <p className="text-xs text-slate-400 mt-0.5">{consignments.length} consignment{consignments.length !== 1 ? 's' : ''} created</p>
               </div>
+              <button onClick={openCnStandalone}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Create
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -1405,15 +1424,17 @@ function TripsPageInner() {
       )}
 
       {/* ── Create Consignment Modal ── */}
-      {cnModal && (
+      {showCnCreate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
               <div>
-                <h3 className="text-base font-bold text-slate-800">Consignment / Create — {cnModal.voucherNo}</h3>
-                <p className="text-xs text-slate-400">{cnModal.origin} → {cnModal.destination} · {cnModal.customer}</p>
+                <h3 className="text-base font-bold text-slate-800">
+                  Consignment / Create{cnModal ? ` — ${cnModal.voucherNo}` : ''}
+                </h3>
+                {cnModal && <p className="text-xs text-slate-400">{cnModal.origin} → {cnModal.destination} · {cnModal.customer}</p>}
               </div>
-              <button onClick={() => setCnModal(null)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={closeCnCreate} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -1603,7 +1624,7 @@ function TripsPageInner() {
               </div>
 
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setCnModal(null)}
+                <button type="button" onClick={closeCnCreate}
                   className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={cnSaving}
                   className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
