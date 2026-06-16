@@ -258,8 +258,8 @@ function PettyCashPageInner() {
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Petty Cash');
-    XLSX.writeFile(wb, 'petty_cash_ledger.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, 'Trip Advance');
+    XLSX.writeFile(wb, 'trip_advance_ledger.xlsx');
   }
 
   const uniqueDrivers = [...new Set(entries.map(p => p.driverName))];
@@ -478,7 +478,7 @@ function PettyCashPageInner() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-800">Issue Petty Cash</h3>
+              <h3 className="text-base font-bold text-slate-800">Issue Trip Advance</h3>
               <button onClick={() => setShowIssue(false)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
@@ -625,7 +625,7 @@ function PettyCashPageInner() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <div>
                 <h3 className="text-base font-bold text-slate-800">Ledger Book — {ledgerDriver}</h3>
-                <p className="text-xs text-slate-500">Complete petty cash history</p>
+                <p className="text-xs text-slate-500">Complete trip advance history</p>
               </div>
               <button onClick={() => setLedgerDriver(null)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

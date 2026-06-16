@@ -302,7 +302,7 @@ export default function CostingPage() {
                     </button>
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <button onClick={() => goPettyCash(c.tripId)} className="text-slate-600 hover:text-blue-700 hover:underline" title="View petty cash entries for this trip">
+                    <button onClick={() => goPettyCash(c.tripId)} className="text-slate-600 hover:text-blue-700 hover:underline" title="View trip advance entries for this trip">
                       ₹{c.misc.toLocaleString()}
                     </button>
                   </td>
