@@ -465,9 +465,6 @@ function TripsPageInner() {
             {key === 'placement' && placementPending.length > 0 && (
               <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">{placementPending.length}</span>
             )}
-            {key === 'cn' && cnPending.length > 0 && (
-              <span className="ml-2 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">{cnPending.length}</span>
-            )}
           </button>
         ))}
       </div>
