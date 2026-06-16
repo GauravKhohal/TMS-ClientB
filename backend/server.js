@@ -9,7 +9,7 @@ const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool } = require('./data/mockData');
+const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments } = require('./data/mockData');
 const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
@@ -34,7 +34,7 @@ function pickFields(obj, fields) {
 // Replaces the in-memory arrays' contents (in place, since routes elsewhere hold
 // references to these `const` arrays) with rows loaded from Postgres at boot.
 async function loadFromDatabase() {
-  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries, dbMaintenanceRecords, dbComplianceRecords] = await Promise.all([
+  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries, dbMaintenanceRecords, dbComplianceRecords, dbConsignments] = await Promise.all([
     prisma.user.findMany(),
     prisma.vehicle.findMany(),
     prisma.driver.findMany(),
@@ -42,6 +42,7 @@ async function loadFromDatabase() {
     prisma.fuelEntry.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.maintenanceRecord.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.complianceRecord.findMany(),
+    prisma.consignment.findMany({ orderBy: { createdAt: 'desc' } }),
   ]);
   const vehicleExtras = new Map(vehicles.map(v => [v.id, pickFields(v, VEHICLE_MOCK_ONLY_FIELDS)]));
   const driverExtras = new Map(drivers.map(d => [d.id, pickFields(d, DRIVER_MOCK_ONLY_FIELDS)]));
@@ -53,7 +54,8 @@ async function loadFromDatabase() {
   fuelEntries.splice(0, fuelEntries.length, ...dbFuelEntries);
   maintenanceRecords.splice(0, maintenanceRecords.length, ...dbMaintenanceRecords);
   complianceRecords.splice(0, complianceRecords.length, ...dbComplianceRecords);
-  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records`);
+  consignments.splice(0, consignments.length, ...dbConsignments);
+  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records, ${consignments.length} consignments`);
 }
 
 // Picks exactly the columns the Trip table has, so create/update calls don't choke
@@ -402,6 +404,68 @@ app.patch('/api/trips/:id/cn', auth, requireRole('Fleet Manager', 'Dispatcher'),
   }
   logAudit(req, 'trip.cn_generate', { tripId: trip.id, cnNumber: trip.cnNumber });
   res.json({ success: true, trip });
+});
+
+// Consignments
+app.get('/api/consignments', auth, (req, res) => res.json(consignments));
+
+app.post('/api/consignments', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
+  const { docType, against, againstNo, vehicleId, source, destination,
+    consignor, consignorLocation, consignorGstin,
+    consignee, consigneeLocation, consigneeGstin,
+    billingParty, billingPartyLocation, billingPartyGstin,
+    deliveryAt, loadType, paymentTerms, mode, godown,
+    containerNo, sealNo, markNo, expectedDelivery, transporter,
+    items } = req.body;
+
+  if (!vehicleId || !source || !destination || !consignor || !consignee) {
+    return res.status(400).json({ error: 'Vehicle, source, destination, consignor and consignee are required' });
+  }
+
+  const today = new Date();
+  const cnDate = today.toISOString().split('T')[0];
+  const cnNumber = `CN${today.getFullYear().toString().slice(2)}${String(today.getMonth() + 1).padStart(2, '0')}${Date.now().toString().slice(-6)}`;
+
+  const lineItems = Array.isArray(items) ? items : [];
+  const totalWeight  = lineItems.reduce((s, i) => s + (parseFloat(i.weight)  || 0), 0);
+  const totalFreight = lineItems.reduce((s, i) => s + (parseInt(i.freight)   || 0), 0);
+
+  const newCn = {
+    id: 'C' + Date.now(),
+    cnNumber, cnDate, docType: docType || 'OEM CN',
+    against: against || 'PLACEMENT', againstNo: againstNo || '',
+    vehicleId, source, destination,
+    consignor, consignorLocation: consignorLocation || '', consignorGstin: consignorGstin || '',
+    consignee, consigneeLocation: consigneeLocation || '', consigneeGstin: consigneeGstin || '',
+    billingParty: billingParty || consignor,
+    billingPartyLocation: billingPartyLocation || '', billingPartyGstin: billingPartyGstin || '',
+    deliveryAt: deliveryAt || 'DIRECT', loadType: loadType || '',
+    paymentTerms: paymentTerms || 'CREDIT', mode: mode || 'ROAD',
+    godown: godown || '', containerNo: containerNo || '', sealNo: sealNo || '',
+    markNo: markNo || '', expectedDelivery: expectedDelivery || '',
+    transporter: transporter || '', items: lineItems,
+    totalWeight, totalFreight,
+    createdBy: req.user?.name || 'System',
+  };
+
+  consignments.unshift(newCn);
+
+  // Mark the linked trip as CN-issued (backward compat with placement flow)
+  const trip = trips.find(t => t.id === againstNo || t.voucherNo === againstNo);
+  if (trip && !trip.cnNumber) {
+    trip.cnNumber = cnNumber;
+    trip.cnDate   = cnDate;
+    try {
+      const { vehicleId: _v, ...tripUpdate } = { cnNumber, cnDate };
+      await prisma.trip.update({ where: { id: trip.id }, data: { cnNumber, cnDate } });
+    } catch (e) { console.error('Failed to patch trip CN:', e.message); }
+  }
+
+  logAudit(req, 'consignment.create', { cnNumber, vehicleId, source, destination, consignor, consignee });
+  try { await prisma.consignment.create({ data: newCn }); }
+  catch (e) { console.error('Failed to persist consignment:', e.message); }
+
+  res.json(newCn);
 });
 
 // Fuel

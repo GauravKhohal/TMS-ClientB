@@ -497,4 +497,7 @@ const spareLedger = [
   { id: 'SL0025', partId: 'SP014', partName: 'Turbocharger Unit', type: 'IN', quantity: 1, date: '2026-01-05', vehicleId: null, regNumber: null, reference: 'Opening Stock', vendor: 'Garrett Turbo Distributor', unitPrice: 45000, notes: 'Initial stock entry', balanceAfter: 1, performedBy: 'Admin User' },
 ];
 
-module.exports = { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool };
+// Loaded from the database at boot via loadFromDatabase() — starts empty.
+const consignments = [];
+
+module.exports = { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments };

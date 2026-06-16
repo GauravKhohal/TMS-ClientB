@@ -33,6 +33,20 @@ interface Trip {
 
 interface VehicleOption { id: string; regNumber: string; status: string; driver: string | null; }
 interface DriverOption { id: string; name: string; status: string; }
+
+interface CnItem { content: string; pkgs: string; weight: string; freight: string; invoiceNo: string; eWayNo: string; shipmentNo: string; remarks: string; }
+interface Consignment {
+  id: string; cnNumber: string; cnDate: string; docType: string;
+  against: string; againstNo: string; vehicleId: string;
+  source: string; destination: string;
+  consignor: string; consignorLocation: string; consignorGstin: string;
+  consignee: string; consigneeLocation: string; consigneeGstin: string;
+  billingParty: string; billingPartyLocation: string; billingPartyGstin: string;
+  deliveryAt: string; loadType: string; paymentTerms: string;
+  mode: string; godown: string; containerNo: string; sealNo: string;
+  markNo: string; expectedDelivery: string; transporter: string;
+  items: CnItem[]; totalWeight: number; totalFreight: number; createdBy: string;
+}
 interface ComplianceItem { status: string; expiry: string; daysLeft: number; provider?: string; }
 interface ComplianceRecord {
   vehicleId: string; rc: ComplianceItem; insurance: ComplianceItem; fitness: ComplianceItem;
@@ -54,7 +68,17 @@ const COMPLIANCE_PANEL_COLORS: Record<string, string> = {
 };
 
 const EMPTY_PLACEMENT = () => ({ vehicleId: '', driverId: '', placementDateTime: '', placementRemarks: '' });
-const EMPTY_CN = () => ({ consigneeName: '', consigneeAddress: '', consigneeContact: '' });
+const EMPTY_CN_ITEM = (): CnItem => ({ content: '', pkgs: '', weight: '', freight: '', invoiceNo: '', eWayNo: '', shipmentNo: '', remarks: '' });
+const EMPTY_CN = () => ({
+  docType: 'OEM CN', against: 'PLACEMENT', againstNo: '', vehicleId: '',
+  source: '', destination: '', paymentTerms: 'CREDIT', mode: 'ROAD',
+  deliveryAt: 'DIRECT', loadType: '', containerNo: '', sealNo: '', markNo: '',
+  expectedDelivery: '', godown: '', transporter: '',
+  consignor: '', consignorLocation: '', consignorGstin: '',
+  consignee: '', consigneeLocation: '', consigneeGstin: '',
+  billingParty: '', billingPartyLocation: '', billingPartyGstin: '',
+  items: [EMPTY_CN_ITEM()],
+});
 
 const STATUS_COLORS: Record<string, string> = {
   'In Transit': 'bg-blue-100 text-blue-700',
@@ -158,7 +182,8 @@ function TripsPageInner() {
   const [cnModal, setCnModal]   = useState<Trip | null>(null);
   const [cnForm, setCnForm]     = useState(EMPTY_CN());
   const [cnSaving, setCnSaving] = useState(false);
-  const [cnView, setCnView]     = useState<Trip | null>(null);
+  const [cnView, setCnView]     = useState<Consignment | null>(null);
+  const [consignments, setConsignments] = useState<Consignment[]>([]);
 
   const { preset, setPreset, fromYM, setFromYM, toYM, setToYM, effectiveFrom, effectiveTo, inRange } = useDateRange();
 
@@ -167,6 +192,7 @@ function TripsPageInner() {
     api.fleet().then((v: VehicleOption[]) => setVehicleOptions(v)).catch(console.error);
     api.drivers().then((d: DriverOption[]) => setDriverOptions(d)).catch(console.error);
     api.compliance().then((c: ComplianceRecord[]) => setComplianceRecords(c)).catch(console.error);
+    api.consignments().then((c: Consignment[]) => setConsignments(c)).catch(console.error);
   }, []);
 
   // Worst compliance status for a vehicle, used for table badges and the placement modal warning
@@ -351,9 +377,17 @@ function TripsPageInner() {
   }
 
   function openCnGenerate(trip: Trip) {
+    const vehicle = vehicleOptions.find(v => v.id === trip.vehicleId);
     setCnForm({
-      consigneeName: trip.consigneeName || '', consigneeAddress: trip.consigneeAddress || '',
-      consigneeContact: trip.consigneeContact || '',
+      ...EMPTY_CN(),
+      againstNo:   trip.voucherNo,
+      vehicleId:   trip.vehicleId,
+      source:      trip.origin,
+      destination: trip.destination,
+      consignor:   trip.customer,
+      billingParty: trip.customer,
+      godown:      trip.origin,
+      items:       [EMPTY_CN_ITEM()],
     });
     setCnModal(trip);
   }
@@ -363,12 +397,19 @@ function TripsPageInner() {
     if (!cnModal) return;
     setCnSaving(true);
     try {
-      const res = await api.generateCN(cnModal.id, cnForm);
-      setTrips(t => t.map(x => x.id === cnModal.id ? res.trip : x));
+      const newCn: Consignment = await api.createConsignment({ ...cnForm, againstNo: cnModal.voucherNo });
+      setConsignments(prev => [newCn, ...prev]);
+      setTrips(t => t.map(x => x.id === cnModal.id ? { ...x, cnNumber: newCn.cnNumber, cnDate: newCn.cnDate } : x));
       setCnModal(null);
-      notify(`Consignment Note ${res.trip.cnNumber} generated for ${cnModal.voucherNo}`);
-    } catch { notify('Failed to generate Consignment Note'); }
+      notify(`Consignment Note ${newCn.cnNumber} created for ${cnModal.voucherNo}`);
+    } catch { notify('Failed to create Consignment Note'); }
     setCnSaving(false);
+  }
+
+  function addCnItem() { setCnForm(f => ({ ...f, items: [...f.items, EMPTY_CN_ITEM()] })); }
+  function removeCnItem(i: number) { setCnForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) })); }
+  function setCnItem(i: number, field: keyof CnItem, val: string) {
+    setCnForm(f => ({ ...f, items: f.items.map((item, idx) => idx === i ? { ...item, [field]: val } : item) }));
   }
 
   const statuses = ['All', 'In Transit', 'Planned', 'Delayed', 'Completed', 'Cancelled'];
@@ -387,8 +428,7 @@ function TripsPageInner() {
   const placementDone     = trips.filter(t => t.approvalStatus === 'Approved' && t.placementConfirmed);
 
   // CN tab
-  const cnPending   = trips.filter(t => t.placementConfirmed && !t.cnNumber);
-  const cnGenerated = trips.filter(t => t.placementConfirmed && t.cnNumber);
+  const cnPending = trips.filter(t => t.placementConfirmed && !t.cnNumber);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
 
@@ -682,81 +722,87 @@ function TripsPageInner() {
       {/* ── CN (Consignment Note) Tab ── */}
       {activeTab === 'cn' && (
         <div className="space-y-5">
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
-            <div className="p-4 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-800">Pending CN Generation</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Vehicles placed — Consignment Note not yet generated</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-100">
-                    {['Voucher', 'Route', 'Customer', 'Vehicle / Driver', 'Content', 'Action'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {cnPending.map(t => (
-                    <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3">
-                        <div className="font-mono text-xs font-bold text-slate-700">{t.voucherNo}</div>
-                        <div className="text-xs text-slate-400">{t.plannedDate}</div>
-                      </td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{t.customer}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId} / {t.driverId}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600">{t.content || t.cargo}</td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <button onClick={() => openCnGenerate(t)}
-                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
-                          Generate CN
-                        </button>
-                      </td>
+          {/* Pending: placed trips without a CN */}
+          {cnPending.length > 0 && (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="text-sm font-bold text-slate-800">Pending Consignment Creation</h3>
+                <p className="text-xs text-slate-400 mt-0.5">Vehicle placed — Consignment Note not yet created</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      {['Voucher', 'Source → Destination', 'Consignor (Customer)', 'Vehicle', 'Content', 'Action'].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {cnPending.length === 0 && (
-                <div className="text-center text-slate-400 text-sm py-10">Nothing pending — every placed vehicle has a CN.</div>
-              )}
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {cnPending.map(t => (
+                      <tr key={t.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <div className="font-mono text-xs font-bold text-slate-700">{t.voucherNo}</div>
+                          <div className="text-xs text-slate-400">{t.plannedDate}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
+                        <td className="px-4 py-3 text-xs text-slate-700 whitespace-nowrap">{t.customer}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{t.vehicleId}</td>
+                        <td className="px-4 py-3 text-xs text-slate-600">{t.content || t.cargo}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <button onClick={() => openCnGenerate(t)}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
+                            Create Consignment
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
 
+          {/* Generated Consignments list */}
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
-            <div className="p-4 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-800">Generated Consignment Notes</h3>
-              <p className="text-xs text-slate-400 mt-0.5">Lorry receipts issued for placed vehicles</p>
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Consignment / List</h3>
+                <p className="text-xs text-slate-400 mt-0.5">{consignments.length} consignment{consignments.length !== 1 ? 's' : ''} created</p>
+              </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100">
-                    {['CN No.', 'CN Date', 'Voucher', 'Route', 'Consignor', 'Consignee', 'Vehicle / Driver', 'Action'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                  <tr className="border-b border-slate-100 bg-slate-50">
+                    {['CN No.', 'Date', 'Vehicle', 'Against', 'Against No.', 'Source', 'Destination', 'Consignor', 'Consignee', 'Billing Party', 'Added By', 'Action'].map(h => (
+                      <th key={h} className="px-3 py-3 text-left font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {cnGenerated.map(t => (
-                    <tr key={t.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-blue-700 whitespace-nowrap">{t.cnNumber}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.cnDate}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-slate-700 whitespace-nowrap">{t.voucherNo}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.customer}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.consigneeName || '—'}</td>
-                      <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{t.vehicleId} / {t.driverId}</td>
-                      <td className="px-4 py-3 whitespace-nowrap flex items-center gap-2">
-                        <button onClick={() => setCnView(t)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">View / Print</button>
-                        <button onClick={() => openCnGenerate(t)} className="text-slate-500 hover:text-slate-700 text-xs font-medium border border-slate-200 px-2 py-0.5 rounded">Edit Consignee</button>
+                  {consignments.map(c => (
+                    <tr key={c.id} className="hover:bg-slate-50">
+                      <td className="px-3 py-3 font-mono font-bold text-blue-700 whitespace-nowrap">{c.cnNumber}</td>
+                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{c.cnDate}</td>
+                      <td className="px-3 py-3 font-mono text-slate-700 whitespace-nowrap">{c.vehicleId}</td>
+                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{c.against}</td>
+                      <td className="px-3 py-3 font-mono text-slate-700 whitespace-nowrap">{c.againstNo}</td>
+                      <td className="px-3 py-3 text-slate-700 whitespace-nowrap">{c.source}</td>
+                      <td className="px-3 py-3 text-slate-700 whitespace-nowrap">{c.destination}</td>
+                      <td className="px-3 py-3 text-slate-700 whitespace-nowrap max-w-[120px] truncate">{c.consignor}</td>
+                      <td className="px-3 py-3 text-slate-700 whitespace-nowrap max-w-[120px] truncate">{c.consignee}</td>
+                      <td className="px-3 py-3 text-slate-600 whitespace-nowrap max-w-[120px] truncate">{c.billingParty}</td>
+                      <td className="px-3 py-3 text-slate-500 whitespace-nowrap">{c.createdBy}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <button onClick={() => setCnView(c)} className="text-blue-600 hover:text-blue-800 font-medium">View</button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {cnGenerated.length === 0 && (
-                <div className="text-center text-slate-400 text-sm py-10">No Consignment Notes generated yet.</div>
+              {consignments.length === 0 && (
+                <div className="text-center text-slate-400 text-sm py-10">No consignments created yet.</div>
               )}
             </div>
           </div>
@@ -1358,39 +1404,211 @@ function TripsPageInner() {
         </div>
       )}
 
-      {/* ── Generate CN Modal ── */}
+      {/* ── Create Consignment Modal ── */}
       {cnModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
               <div>
-                <h3 className="text-base font-bold text-slate-800">{cnModal.cnNumber ? 'Edit Consignee' : 'Generate Consignment Note'} — {cnModal.voucherNo}</h3>
+                <h3 className="text-base font-bold text-slate-800">Consignment / Create — {cnModal.voucherNo}</h3>
                 <p className="text-xs text-slate-400">{cnModal.origin} → {cnModal.destination} · {cnModal.customer}</p>
               </div>
               <button onClick={() => setCnModal(null)} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handleCnSave} className="p-6 space-y-4">
-              <Field label="Consignee Name *">
-                <input required className={INPUT} placeholder="Receiving party name" value={cnForm.consigneeName}
-                  onChange={e => setCnForm(f => ({ ...f, consigneeName: e.target.value }))} />
-              </Field>
-              <Field label="Consignee Address *">
-                <input required className={INPUT} placeholder="Delivery address" value={cnForm.consigneeAddress}
-                  onChange={e => setCnForm(f => ({ ...f, consigneeAddress: e.target.value }))} />
-              </Field>
-              <Field label="Consignee Contact No.">
-                <input className={INPUT} placeholder="9800000000" maxLength={10} value={cnForm.consigneeContact}
-                  onChange={e => setCnForm(f => ({ ...f, consigneeContact: e.target.value }))} />
-              </Field>
+            <form onSubmit={handleCnSave} className="p-6 space-y-6">
+
+              {/* Section 1: Document Details */}
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Document Details</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Field label="Document Type">
+                    <select className={SELECT} value={cnForm.docType} onChange={e => setCnForm(f => ({ ...f, docType: e.target.value }))}>
+                      {['OEM CN', 'LR', 'Builty'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Against">
+                    <select className={SELECT} value={cnForm.against} onChange={e => setCnForm(f => ({ ...f, against: e.target.value }))}>
+                      {['PLACEMENT', 'DIRECT'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Against No.">
+                    <input className={INPUT} value={cnForm.againstNo} onChange={e => setCnForm(f => ({ ...f, againstNo: e.target.value }))} />
+                  </Field>
+                  <Field label="Vehicle No. *">
+                    <input required className={INPUT} value={cnForm.vehicleId} onChange={e => setCnForm(f => ({ ...f, vehicleId: e.target.value }))} placeholder="V001" />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Section 2: Route & Transport */}
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Route & Transport</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Field label="Source *">
+                    <input required className={INPUT} value={cnForm.source} onChange={e => setCnForm(f => ({ ...f, source: e.target.value }))} placeholder="Origin city" />
+                  </Field>
+                  <Field label="Destination *">
+                    <input required className={INPUT} value={cnForm.destination} onChange={e => setCnForm(f => ({ ...f, destination: e.target.value }))} placeholder="Destination city" />
+                  </Field>
+                  <Field label="Mode">
+                    <select className={SELECT} value={cnForm.mode} onChange={e => setCnForm(f => ({ ...f, mode: e.target.value }))}>
+                      {['ROAD', 'RAIL', 'AIR', 'SEA'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Payment Terms">
+                    <select className={SELECT} value={cnForm.paymentTerms} onChange={e => setCnForm(f => ({ ...f, paymentTerms: e.target.value }))}>
+                      {['CREDIT', 'CASH', 'TO-PAY', 'TBB'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Container No.">
+                    <input className={INPUT} value={cnForm.containerNo} onChange={e => setCnForm(f => ({ ...f, containerNo: e.target.value }))} />
+                  </Field>
+                  <Field label="Seal No.">
+                    <input className={INPUT} value={cnForm.sealNo} onChange={e => setCnForm(f => ({ ...f, sealNo: e.target.value }))} />
+                  </Field>
+                  <Field label="Load Type">
+                    <select className={SELECT} value={cnForm.loadType} onChange={e => setCnForm(f => ({ ...f, loadType: e.target.value }))}>
+                      {['', 'FTL', 'LTL', 'Part Load'].map(o => <option key={o} value={o}>{o || 'Select...'}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Godown">
+                    <input className={INPUT} value={cnForm.godown} onChange={e => setCnForm(f => ({ ...f, godown: e.target.value }))} placeholder="Loading branch" />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Section 3: Parties */}
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Parties</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {/* Consignor */}
+                  <div className="space-y-2 border border-slate-100 rounded-xl p-4 bg-slate-50">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Consignor (Sender)</p>
+                    <Field label="Name *">
+                      <input required className={INPUT} value={cnForm.consignor} onChange={e => setCnForm(f => ({ ...f, consignor: e.target.value }))} placeholder="Company name" />
+                    </Field>
+                    <Field label="Location">
+                      <input className={INPUT} value={cnForm.consignorLocation} onChange={e => setCnForm(f => ({ ...f, consignorLocation: e.target.value }))} placeholder="City" />
+                    </Field>
+                    <Field label="GSTIN">
+                      <input className={INPUT} value={cnForm.consignorGstin} onChange={e => setCnForm(f => ({ ...f, consignorGstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" />
+                    </Field>
+                  </div>
+                  {/* Consignee */}
+                  <div className="space-y-2 border border-slate-100 rounded-xl p-4 bg-slate-50">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Consignee (Receiver)</p>
+                    <Field label="Name *">
+                      <input required className={INPUT} value={cnForm.consignee} onChange={e => setCnForm(f => ({ ...f, consignee: e.target.value }))} placeholder="Company name" />
+                    </Field>
+                    <Field label="Location">
+                      <input className={INPUT} value={cnForm.consigneeLocation} onChange={e => setCnForm(f => ({ ...f, consigneeLocation: e.target.value }))} placeholder="City" />
+                    </Field>
+                    <Field label="GSTIN">
+                      <input className={INPUT} value={cnForm.consigneeGstin} onChange={e => setCnForm(f => ({ ...f, consigneeGstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" />
+                    </Field>
+                  </div>
+                  {/* Billing Party */}
+                  <div className="space-y-2 border border-slate-100 rounded-xl p-4 bg-slate-50">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Billing Party</p>
+                    <Field label="Name">
+                      <input className={INPUT} value={cnForm.billingParty} onChange={e => setCnForm(f => ({ ...f, billingParty: e.target.value }))} placeholder="Same as consignor if blank" />
+                    </Field>
+                    <Field label="Location">
+                      <input className={INPUT} value={cnForm.billingPartyLocation} onChange={e => setCnForm(f => ({ ...f, billingPartyLocation: e.target.value }))} placeholder="City" />
+                    </Field>
+                    <Field label="GSTIN">
+                      <input className={INPUT} value={cnForm.billingPartyGstin} onChange={e => setCnForm(f => ({ ...f, billingPartyGstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Delivery Details */}
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Delivery Details</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Field label="Delivery At">
+                    <select className={SELECT} value={cnForm.deliveryAt} onChange={e => setCnForm(f => ({ ...f, deliveryAt: e.target.value }))}>
+                      {['DIRECT', 'GODOWN', 'DOOR'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Expected Delivery">
+                    <input type="date" className={INPUT} value={cnForm.expectedDelivery} onChange={e => setCnForm(f => ({ ...f, expectedDelivery: e.target.value }))} />
+                  </Field>
+                  <Field label="Mark No.">
+                    <input className={INPUT} value={cnForm.markNo} onChange={e => setCnForm(f => ({ ...f, markNo: e.target.value }))} />
+                  </Field>
+                  <Field label="Transporter">
+                    <input className={INPUT} value={cnForm.transporter} onChange={e => setCnForm(f => ({ ...f, transporter: e.target.value }))} />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Section 5: Items */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Items / Goods</p>
+                  <button type="button" onClick={addCnItem}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 px-3 py-1 rounded-lg">
+                    + Add Item
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        {['Content / Description', 'Pkgs', 'Weight (kg)', 'Freight (₹)', 'Invoice No.', 'E-Way Bill No.', 'Shipment No.', 'Remarks', ''].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {cnForm.items.map((item, i) => (
+                        <tr key={i}>
+                          <td className="px-2 py-1"><input className={INPUT + ' min-w-[140px]'} value={item.content} onChange={e => setCnItem(i, 'content', e.target.value)} placeholder="Goods description" /></td>
+                          <td className="px-2 py-1"><input type="number" min={0} className={INPUT + ' w-16'} value={item.pkgs} onChange={e => setCnItem(i, 'pkgs', e.target.value)} /></td>
+                          <td className="px-2 py-1"><input type="number" min={0} className={INPUT + ' w-20'} value={item.weight} onChange={e => setCnItem(i, 'weight', e.target.value)} /></td>
+                          <td className="px-2 py-1"><input type="number" min={0} className={INPUT + ' w-20'} value={item.freight} onChange={e => setCnItem(i, 'freight', e.target.value)} /></td>
+                          <td className="px-2 py-1"><input className={INPUT + ' w-28'} value={item.invoiceNo} onChange={e => setCnItem(i, 'invoiceNo', e.target.value)} /></td>
+                          <td className="px-2 py-1"><input className={INPUT + ' w-32'} value={item.eWayNo} onChange={e => setCnItem(i, 'eWayNo', e.target.value)} /></td>
+                          <td className="px-2 py-1"><input className={INPUT + ' w-28'} value={item.shipmentNo} onChange={e => setCnItem(i, 'shipmentNo', e.target.value)} /></td>
+                          <td className="px-2 py-1"><input className={INPUT + ' w-28'} value={item.remarks} onChange={e => setCnItem(i, 'remarks', e.target.value)} /></td>
+                          <td className="px-2 py-1">
+                            {cnForm.items.length > 1 && (
+                              <button type="button" onClick={() => removeCnItem(i)} className="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200">
+                      <tr>
+                        <td className="px-3 py-2 font-semibold text-slate-600">Totals</td>
+                        <td className="px-3 py-2 font-semibold text-slate-700">
+                          {cnForm.items.reduce((s, i) => s + (parseInt(i.pkgs) || 0), 0)} pkgs
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-slate-700">
+                          {cnForm.items.reduce((s, i) => s + (parseFloat(i.weight) || 0), 0).toFixed(1)} kg
+                        </td>
+                        <td className="px-3 py-2 font-semibold text-slate-700">
+                          ₹{cnForm.items.reduce((s, i) => s + (parseInt(i.freight) || 0), 0).toLocaleString('en-IN')}
+                        </td>
+                        <td colSpan={5} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setCnModal(null)}
                   className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={cnSaving}
                   className="px-6 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
                   {cnSaving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  {cnSaving ? 'Saving…' : (cnModal.cnNumber ? 'Save Changes' : 'Generate CN')}
+                  {cnSaving ? 'Saving…' : 'Submit Consignment'}
                 </button>
               </div>
             </form>
@@ -1401,7 +1619,7 @@ function TripsPageInner() {
       {/* ── CN View / Print Modal ── */}
       {cnView && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 print:bg-white print:p-0 print:static">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto print:max-w-full print:max-h-none print:shadow-none print:rounded-none print:overflow-visible">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto print:max-w-full print:max-h-none print:shadow-none print:rounded-none print:overflow-visible">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 sticky top-0 bg-white z-10 print:hidden">
               <h3 className="text-base font-bold text-slate-800">Consignment Note — {cnView.cnNumber}</h3>
               <div className="flex items-center gap-2">
@@ -1411,78 +1629,103 @@ function TripsPageInner() {
                 </button>
               </div>
             </div>
-
             <div className="p-8 space-y-6 text-sm">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-start justify-between border-b border-slate-200 pb-4">
                 <div>
                   <h2 className="text-lg font-bold text-slate-800">Nexantra Technologies</h2>
                   <p className="text-xs text-slate-500">Consignment Note / Lorry Receipt</p>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-slate-500">CN No.</div>
-                  <div className="font-mono font-bold text-blue-700">{cnView.cnNumber}</div>
-                  <div className="text-xs text-slate-500 mt-1">Date</div>
-                  <div className="font-medium text-slate-800">{cnView.cnDate}</div>
+                  <div className="font-mono font-bold text-blue-700 text-lg">{cnView.cnNumber}</div>
+                  <div className="text-xs text-slate-500 mt-1">Date · {cnView.cnDate}</div>
+                  <div className="text-xs text-slate-500">Doc Type · {cnView.docType}</div>
                 </div>
               </div>
 
-              {/* Consignor / Consignee */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="border border-slate-200 rounded-lg p-3">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Consignor</div>
-                  <div className="font-medium text-slate-800">{cnView.customer}</div>
-                  <div className="text-xs text-slate-500">{cnView.address}</div>
-                  <div className="text-xs text-slate-500 mt-1">{cnView.contactPerson} · {cnView.contactNo}</div>
-                </div>
-                <div className="border border-slate-200 rounded-lg p-3">
-                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Consignee</div>
-                  <div className="font-medium text-slate-800">{cnView.consigneeName || '—'}</div>
-                  <div className="text-xs text-slate-500">{cnView.consigneeAddress || '—'}</div>
-                  <div className="text-xs text-slate-500 mt-1">{cnView.consigneeContact || '—'}</div>
-                </div>
+              {/* Parties */}
+              <div className="grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Consignor', name: cnView.consignor, loc: cnView.consignorLocation, gstin: cnView.consignorGstin },
+                  { label: 'Consignee', name: cnView.consignee, loc: cnView.consigneeLocation, gstin: cnView.consigneeGstin },
+                  { label: 'Billing Party', name: cnView.billingParty, loc: cnView.billingPartyLocation, gstin: cnView.billingPartyGstin },
+                ].map(p => (
+                  <div key={p.label} className="border border-slate-200 rounded-lg p-3">
+                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">{p.label}</div>
+                    <div className="font-semibold text-slate-800">{p.name || '—'}</div>
+                    {p.loc && <div className="text-xs text-slate-500">{p.loc}</div>}
+                    {p.gstin && <div className="text-xs text-slate-400 font-mono">{p.gstin}</div>}
+                  </div>
+                ))}
               </div>
 
-              {/* Route & Vehicle */}
+              {/* Route & Shipment */}
               <div className="border border-slate-200 rounded-lg p-3">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Route & Vehicle</div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><span className="text-xs text-slate-500">From</span><div className="font-medium text-slate-800">{cnView.origin}</div></div>
-                  <div><span className="text-xs text-slate-500">To</span><div className="font-medium text-slate-800">{cnView.destination}</div></div>
-                  <div><span className="text-xs text-slate-500">Vehicle No.</span><div className="font-medium text-slate-800">{cnView.vehicleId}</div></div>
-                  <div><span className="text-xs text-slate-500">Driver</span><div className="font-medium text-slate-800">{cnView.driverId}</div></div>
-                  <div><span className="text-xs text-slate-500">Placement Date/Time</span><div className="font-medium text-slate-800">{cnView.placementDateTime ? cnView.placementDateTime.replace('T', ' ') : '—'}</div></div>
-                  <div><span className="text-xs text-slate-500">Distance</span><div className="font-medium text-slate-800">{cnView.distance ? `${cnView.distance.toLocaleString()} km` : '—'}</div></div>
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Route & Shipment</div>
+                <div className="grid grid-cols-4 gap-3">
+                  <div><span className="text-xs text-slate-500">Source</span><div className="font-medium text-slate-800">{cnView.source}</div></div>
+                  <div><span className="text-xs text-slate-500">Destination</span><div className="font-medium text-slate-800">{cnView.destination}</div></div>
+                  <div><span className="text-xs text-slate-500">Vehicle</span><div className="font-medium text-slate-800">{cnView.vehicleId}</div></div>
+                  <div><span className="text-xs text-slate-500">Mode</span><div className="font-medium text-slate-800">{cnView.mode}</div></div>
+                  <div><span className="text-xs text-slate-500">Against</span><div className="font-medium text-slate-800">{cnView.against}</div></div>
+                  <div><span className="text-xs text-slate-500">Against No.</span><div className="font-medium text-slate-800">{cnView.againstNo}</div></div>
+                  <div><span className="text-xs text-slate-500">Payment</span><div className="font-medium text-slate-800">{cnView.paymentTerms}</div></div>
+                  <div><span className="text-xs text-slate-500">Delivery At</span><div className="font-medium text-slate-800">{cnView.deliveryAt}</div></div>
+                  {cnView.containerNo && <div><span className="text-xs text-slate-500">Container No.</span><div className="font-medium text-slate-800">{cnView.containerNo}</div></div>}
+                  {cnView.sealNo      && <div><span className="text-xs text-slate-500">Seal No.</span><div className="font-medium text-slate-800">{cnView.sealNo}</div></div>}
+                  {cnView.expectedDelivery && <div><span className="text-xs text-slate-500">Expected Delivery</span><div className="font-medium text-slate-800">{cnView.expectedDelivery}</div></div>}
+                  {cnView.transporter && <div><span className="text-xs text-slate-500">Transporter</span><div className="font-medium text-slate-800">{cnView.transporter}</div></div>}
                 </div>
               </div>
 
-              {/* Goods */}
-              <div className="border border-slate-200 rounded-lg p-3">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Goods Description</div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><span className="text-xs text-slate-500">Content</span><div className="font-medium text-slate-800">{cnView.content || cnView.cargo}</div></div>
-                  <div><span className="text-xs text-slate-500">Weight</span><div className="font-medium text-slate-800">{cnView.weight} Tons</div></div>
-                  <div><span className="text-xs text-slate-500">Packages</span><div className="font-medium text-slate-800">{cnView.packages}</div></div>
+              {/* Items table */}
+              {cnView.items && cnView.items.length > 0 && (
+                <div>
+                  <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Goods / Items</div>
+                  <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">
+                    <thead className="bg-slate-50">
+                      <tr>
+                        {['#', 'Content', 'Pkgs', 'Weight', 'Freight', 'Invoice No.', 'E-Way Bill', 'Shipment No.', 'Remarks'].map(h => (
+                          <th key={h} className="px-3 py-2 text-left font-semibold text-slate-500 whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {cnView.items.map((item, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-3 py-2 text-slate-400">{i + 1}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800">{item.content || '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.pkgs || '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.weight ? `${item.weight} kg` : '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.freight ? `₹${parseInt(item.freight).toLocaleString('en-IN')}` : '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.invoiceNo || '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.eWayNo || '—'}</td>
+                          <td className="px-3 py-2 text-slate-700">{item.shipmentNo || '—'}</td>
+                          <td className="px-3 py-2 text-slate-500">{item.remarks || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200 font-semibold">
+                      <tr>
+                        <td colSpan={2} className="px-3 py-2 text-slate-700">Totals</td>
+                        <td className="px-3 py-2 text-slate-700">{cnView.items.reduce((s, i) => s + (parseInt(i.pkgs) || 0), 0)} pkgs</td>
+                        <td className="px-3 py-2 text-slate-700">{cnView.totalWeight.toFixed(1)} kg</td>
+                        <td className="px-3 py-2 text-slate-700">₹{cnView.totalFreight.toLocaleString('en-IN')}</td>
+                        <td colSpan={4} />
+                      </tr>
+                    </tfoot>
+                  </table>
                 </div>
-              </div>
-
-              {/* Freight */}
-              <div className="border border-slate-200 rounded-lg p-3">
-                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Freight & Charges</div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div><span className="text-xs text-slate-500">Freight</span><div className="font-medium text-slate-800">₹{(cnView.freight || 0).toLocaleString('en-IN')}</div></div>
-                  <div><span className="text-xs text-slate-500">Payment Terms</span><div className="font-medium text-slate-800">{cnView.paymentTerms}</div></div>
-                  <div><span className="text-xs text-slate-500">Total</span><div className="font-bold text-slate-800">₹{(cnView.total || 0).toLocaleString('en-IN')}</div></div>
-                  <div><span className="text-xs text-slate-500">Advance</span><div className="font-medium text-slate-800">₹{(cnView.advance || 0).toLocaleString('en-IN')}</div></div>
-                  <div><span className="text-xs text-slate-500">Balance</span><div className="font-medium text-blue-700">₹{(cnView.balance || 0).toLocaleString('en-IN')}</div></div>
-                </div>
-              </div>
+              )}
 
               {/* Signatures */}
-              <div className="grid grid-cols-2 gap-4 pt-8">
+              <div className="grid grid-cols-3 gap-6 pt-8">
                 <div className="border-t border-slate-300 pt-2 text-center text-xs text-slate-500">Consignor Signature</div>
+                <div className="border-t border-slate-300 pt-2 text-center text-xs text-slate-500">Consignee Signature</div>
                 <div className="border-t border-slate-300 pt-2 text-center text-xs text-slate-500">Carrier / Driver Signature</div>
               </div>
+              <div className="text-xs text-slate-400 text-right">Created by {cnView.createdBy}</div>
             </div>
           </div>
         </div>

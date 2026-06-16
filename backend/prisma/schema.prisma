@@ -175,3 +175,39 @@ model ComplianceRecord {
   nationalPermit Json
   updatedAt      DateTime @updatedAt
 }
+
+model Consignment {
+  id                   String   @id
+  cnNumber             String
+  cnDate               String
+  docType              String
+  against              String
+  againstNo            String
+  vehicleId            String
+  source               String
+  destination          String
+  consignor            String
+  consignorLocation    String
+  consignorGstin       String
+  consignee            String
+  consigneeLocation    String
+  consigneeGstin       String
+  billingParty         String
+  billingPartyLocation String
+  billingPartyGstin    String
+  deliveryAt           String
+  loadType             String
+  paymentTerms         String
+  mode                 String
+  godown               String
+  containerNo          String
+  sealNo               String
+  markNo               String
+  expectedDelivery     String
+  transporter          String
+  items                Json
+  totalWeight          Float
+  totalFreight         Int
+  createdBy            String
+  createdAt            DateTime @default(now())
+}
