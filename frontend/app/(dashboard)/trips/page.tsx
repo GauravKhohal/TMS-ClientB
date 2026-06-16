@@ -441,8 +441,6 @@ function TripsPageInner() {
   const placementPending = trips.filter(t => t.approvalStatus === 'Approved' && !t.placementConfirmed);
   const placementDone     = trips.filter(t => t.approvalStatus === 'Approved' && t.placementConfirmed);
 
-  // CN tab
-  const cnPending = trips.filter(t => t.placementConfirmed && !t.cnNumber);
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
 
@@ -736,47 +734,6 @@ function TripsPageInner() {
       {/* ── CN (Consignment Note) Tab ── */}
       {activeTab === 'cn' && (
         <div className="space-y-5">
-          {/* Pending: placed trips without a CN */}
-          {cnPending.length > 0 && (
-            <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
-              <div className="p-4 border-b border-slate-100">
-                <h3 className="text-sm font-bold text-slate-800">Pending Consignment Creation</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Vehicle placed — Consignment Note not yet created</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      {['Voucher', 'Source → Destination', 'Consignor (Customer)', 'Vehicle', 'Content', 'Action'].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {cnPending.map(t => (
-                      <tr key={t.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <div className="font-mono text-xs font-bold text-slate-700">{t.voucherNo}</div>
-                          <div className="text-xs text-slate-400">{t.plannedDate}</div>
-                        </td>
-                        <td className="px-4 py-3 text-sm font-medium text-slate-800 whitespace-nowrap">{t.origin} → {t.destination}</td>
-                        <td className="px-4 py-3 text-xs text-slate-700 whitespace-nowrap">{t.customer}</td>
-                        <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{t.vehicleId}</td>
-                        <td className="px-4 py-3 text-xs text-slate-600">{t.content || t.cargo}</td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <button onClick={() => openCnGenerate(t)}
-                            className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700">
-                            Create Consignment
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {/* Generated Consignments list */}
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
