@@ -74,7 +74,7 @@ function tripDbFields(t) {
   return {
     voucherNo: t.voucherNo, origin: t.origin, destination: t.destination, stops: t.stops, viaStops: t.viaStops,
     status: t.status, approvalStatus: t.approvalStatus, rejectionReason: t.rejectionReason, driverId: t.driverId,
-    vehicleId: t.vehicleId, customer: t.customer, contactPerson: t.contactPerson, contactNo: t.contactNo,
+    vehicleId: t.vehicleId, customer: t.customer, customerType: t.customerType ?? 'Market', contactPerson: t.contactPerson, contactNo: t.contactNo,
     address: t.address, category: t.category, segment: t.segment, businessGroup: t.businessGroup,
     employeeId: t.employeeId, placementDate: t.placementDate, noOfVehicles: t.noOfVehicles,
     vehicleLoadType: t.vehicleLoadType, cargo: t.cargo, content: t.content, rateType: t.rateType,
@@ -389,7 +389,7 @@ app.patch('/api/trips/:id', auth, requireRole('Fleet Manager', 'Dispatcher'), as
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
   const FINANCIAL_FIELDS = ['freight','loadingCharges','unloadingCharges','otherCharges','commission','advance','rate'];
   const before = FINANCIAL_FIELDS.reduce((o, k) => ({ ...o, [k]: trip[k] }), {});
-  const allowed = ['customer','contactPerson','contactNo','address','category','segment','businessGroup',
+  const allowed = ['customer','customerType','contactPerson','contactNo','address','category','segment','businessGroup',
     'vehicleLoadType','noOfVehicles','content','rateType','weight','packages','rate',
     'freight','loadingCharges','unloadingCharges','otherCharges','commission',
     'advance','paymentTerms','creditDays','total','balance',

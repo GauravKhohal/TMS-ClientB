@@ -15,7 +15,7 @@ interface Trip {
   stops: string[]; viaStops: ViaStop[]; status: string;
   approvalStatus: string; rejectionReason: string;
   driverId: string; vehicleId: string;
-  customer: string; contactPerson: string; contactNo: string; address: string;
+  customer: string; customerType: string; contactPerson: string; contactNo: string; address: string;
   category: string; segment: string; businessGroup: string;
   employeeId: string; placementDate: string; noOfVehicles: number; vehicleLoadType: string;
   cargo: string; content: string; rateType: string;
@@ -114,7 +114,7 @@ function fmtHrs(hrs: number) {
 
 
 const EMPTY_FORM = () => ({
-  customer: '', contactPerson: '', contactNo: '', address: '',
+  customer: '', customerType: 'Market', contactPerson: '', contactNo: '', address: '',
   category: 'MARKET', segment: 'FMCG', businessGroup: '',
   employeeId: '', placementDate: new Date().toISOString().split('T')[0],
   noOfVehicles: 1, vehicleLoadType: '32FT MXL',
@@ -316,7 +316,7 @@ function TripsPageInner() {
 
   function openEdit(trip: Trip) {
     setEditForm({
-      customer: trip.customer || '', contactPerson: trip.contactPerson || '',
+      customer: trip.customer || '', customerType: trip.customerType || 'Market', contactPerson: trip.contactPerson || '',
       contactNo: trip.contactNo || '', address: trip.address || '',
       category: trip.category || 'MARKET', segment: trip.segment || 'FMCG',
       businessGroup: trip.businessGroup || '', employeeId: trip.employeeId || '',
@@ -570,6 +570,9 @@ function TripsPageInner() {
                   <td className="px-4 py-3">
                     <div className="text-sm text-slate-800 whitespace-nowrap">{t.customer}</div>
                     <div className="text-xs text-slate-400">{t.contactPerson}</div>
+                    {t.customerType && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 mt-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">{t.customerType}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="text-xs text-slate-700">{t.content || t.cargo}</div>
@@ -824,6 +827,11 @@ function TripsPageInner() {
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Customer Details</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <Field label="Customer Type *">
+                    <select required className={SELECT} value={form.customerType} onChange={e => setF('customerType', e.target.value)}>
+                      {['OEM', 'Market', 'Broker'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
                   <Field label="Customer Name *">
                     <input required className={INPUT} placeholder="Reliance Industries" value={form.customer} onChange={e => setF('customer', e.target.value)} />
                   </Field>
@@ -1041,6 +1049,11 @@ function TripsPageInner() {
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Customer Details</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <Field label="Customer Type">
+                    <select className={SELECT} value={editForm.customerType} onChange={e => setEditForm(f => ({ ...f, customerType: e.target.value }))}>
+                      {['OEM', 'Market', 'Broker'].map(o => <option key={o}>{o}</option>)}
+                    </select>
+                  </Field>
                   <Field label="Customer Name *">
                     <input required className={INPUT} value={editForm.customer} onChange={e => setEditForm(f => ({ ...f, customer: e.target.value }))} />
                   </Field>
@@ -1266,6 +1279,7 @@ function TripsPageInner() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               {[
                 ['Category', selected.category], ['Segment', selected.segment],
+                ['Customer Type', selected.customerType],
                 ['Contact Person', selected.contactPerson], ['Contact No.', selected.contactNo],
                 ['Address', selected.address], ['Payment Terms', selected.paymentTerms],
                 ['Credit Days', String(selected.creditDays) + ' days'],

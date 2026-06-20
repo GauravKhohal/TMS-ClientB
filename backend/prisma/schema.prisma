@@ -94,6 +94,7 @@ model Trip {
   driverId         String?
   vehicleId        String?
   customer         String
+  customerType     String   @default("Market")
   contactPerson    String
   contactNo        String
   address          String
