@@ -177,7 +177,7 @@ export default function FleetPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       if (vehicles.length >= MAX_FLEET_SIZE) {
         setErrorMsg(`Fleet limit of ${MAX_FLEET_SIZE} trucks reached. Remove a vehicle before importing more.`);
         setTimeout(() => setErrorMsg(''), 4000);
@@ -188,34 +188,45 @@ export default function FleetPage() {
       const allRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]) as Record<string, string | number>[];
       const rows = allRows.slice(0, MAX_FLEET_SIZE - vehicles.length);
       const skipped = allRows.length - rows.length;
-      const imported: Vehicle[] = rows.map((row, i) => ({
-        id: 'VI' + (Date.now() + i).toString().slice(-6),
-        regNumber: String(row['Reg Number'] || ''),
-        make: String(row['Make'] || ''),
-        model: String(row['Model'] || ''),
-        year: Number(row['Year']) || new Date().getFullYear(),
-        category: String(row['Category'] || 'Heavy'),
-        ownershipType: String(row['Ownership Type'] || 'Own'),
-        capacity: String(row['Capacity'] || ''),
-        fuelType: String(row['Fuel Type'] || 'Diesel'),
-        odometer: Number(row['Odometer (km)']) || 0,
-        insurance: String(row['Insurance Expiry'] || ''),
-        fitness: String(row['Fitness Expiry'] || ''),
-        permit: String(row['Permit Expiry'] || ''),
-        purchasedAgency: String(row['Purchased Agency'] || ''),
-        vehicleValue: Number(row['Vehicle Value (₹)']) || 0,
-        emiEnabled: String(row['EMI'] || 'No'),
-        monthlyEMI: Number(row['Monthly EMI (₹)']) || 0,
-        loanBank: String(row['Bank Name'] || ''),
-        status: 'Idle', driver: null, speed: 0, utilization: 0,
-        location: { lat: 18.52, lng: 73.85 },
-        loanAmount: 0, loanTenureMonths: 0, loanStartDate: '', emisPaid: 0, emiHistory: [],
-      }));
+
+      const imported: Vehicle[] = [];
+      let failed = 0;
+      for (const row of rows) {
+        const payload = {
+          regNumber: String(row['Reg Number'] || ''),
+          make: String(row['Make'] || ''),
+          model: String(row['Model'] || ''),
+          year: Number(row['Year']) || new Date().getFullYear(),
+          category: String(row['Category'] || 'Heavy'),
+          ownershipType: String(row['Ownership Type'] || 'Own'),
+          capacity: String(row['Capacity'] || ''),
+          fuelType: String(row['Fuel Type'] || 'Diesel'),
+          odometer: Number(row['Odometer (km)']) || 0,
+          insurance: String(row['Insurance Expiry'] || ''),
+          fitness: String(row['Fitness Expiry'] || ''),
+          permit: String(row['Permit Expiry'] || ''),
+          purchasedAgency: String(row['Purchased Agency'] || ''),
+          vehicleValue: Number(row['Vehicle Value (₹)']) || 0,
+          emiEnabled: String(row['EMI'] || 'No'),
+          monthlyEMI: Number(row['Monthly EMI (₹)']) || 0,
+          loanBank: String(row['Bank Name'] || ''),
+        };
+        if (!payload.regNumber || !payload.make || !payload.model) { failed++; continue; }
+        try {
+          imported.push(await api.createVehicle(payload) as Vehicle);
+        } catch { failed++; }
+      }
+
       setVehicles(v => [...imported, ...v]);
-      setSuccessMsg(`${imported.length} vehicle(s) imported successfully!`);
-      setTimeout(() => setSuccessMsg(''), 4000);
-      if (skipped > 0) {
-        setErrorMsg(`Fleet limit of ${MAX_FLEET_SIZE} trucks reached — ${skipped} row(s) were skipped.`);
+      if (imported.length > 0) {
+        setSuccessMsg(`${imported.length} vehicle(s) imported successfully!`);
+        setTimeout(() => setSuccessMsg(''), 4000);
+      }
+      if (skipped > 0 || failed > 0) {
+        const parts = [];
+        if (skipped > 0) parts.push(`${skipped} row(s) skipped (fleet limit of ${MAX_FLEET_SIZE} reached)`);
+        if (failed > 0) parts.push(`${failed} row(s) failed to save`);
+        setErrorMsg(parts.join('; '));
         setTimeout(() => setErrorMsg(''), 5000);
       }
     };
@@ -272,24 +283,18 @@ export default function FleetPage() {
       return;
     }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 600));
-    const newVehicle: Vehicle = {
-      ...form,
-      id: 'V' + (vehicles.length + 1).toString().padStart(3, '0'),
-      status: 'Idle',
-      driver: null,
-      speed: 0,
-      utilization: 0,
-      location: { lat: 18.52, lng: 73.85 },
-      emisPaid: 0,
-      emiHistory: [],
-    };
-    setVehicles(v => [newVehicle, ...v]);
-    setForm(EMPTY_FORM);
-    setShowAdd(false);
+    try {
+      const newVehicle = await api.createVehicle(form) as Vehicle;
+      setVehicles(v => [newVehicle, ...v]);
+      setForm(EMPTY_FORM);
+      setShowAdd(false);
+      setSuccessMsg(`Vehicle ${form.regNumber} added successfully!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to add vehicle');
+      setTimeout(() => setErrorMsg(''), 4000);
+    }
     setSaving(false);
-    setSuccessMsg(`Vehicle ${form.regNumber} added successfully!`);
-    setTimeout(() => setSuccessMsg(''), 3000);
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;

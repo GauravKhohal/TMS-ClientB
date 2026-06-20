@@ -146,6 +146,7 @@ const requireRole = (...roles) => (req, res, next) => {
 const loginHistory = []; // { id, userId, userName, role, email, timestamp, ip }
 const pageVisits   = {}; // { userId: { '/fleet': 4, '/dashboard': 9, ... } }
 const MAX_LOGIN_HISTORY = 500;
+const MAX_FLEET_SIZE = 200; // mirrors frontend/app/(dashboard)/fleet/page.tsx
 
 // Append-only audit trail for sensitive actions — who changed what, and when.
 // Persisted to Postgres (not a local file) so it survives container restarts/redeploys.
@@ -285,7 +286,46 @@ app.get('/api/fleet/:id', auth, (req, res) => {
   const driver = drivers.find(d => d.id === v.driver);
   res.json({ ...v, driverDetails: driver });
 });
-app.post('/api/fleet', auth, requireRole('Fleet Manager'), (req, res) => res.json({ ...req.body, id: 'V' + Date.now() }));
+app.post('/api/fleet', auth, requireRole('Fleet Manager'), async (req, res) => {
+  if (vehicles.length >= MAX_FLEET_SIZE) return res.status(400).json({ error: `Fleet limit of ${MAX_FLEET_SIZE} vehicles reached` });
+  const { regNumber, make, model, year, category, ownershipType, capacity, fuelType,
+    insurance, fitness, permit, odometer, purchaseDate, purchasedAgency, vehicleValue,
+    emiEnabled, monthlyEMI, loanBank, loanAmount, loanTenureMonths, loanStartDate } = req.body;
+  if (!regNumber || !make || !model) return res.status(400).json({ error: 'Registration number, make, and model are required' });
+  const newVehicle = {
+    id: 'V' + Date.now(),
+    regNumber, make, model, year: Number(year) || new Date().getFullYear(),
+    category: category || 'Heavy', ownershipType: ownershipType || 'Own', capacity: capacity || '', fuelType: fuelType || 'Diesel',
+    status: 'Idle', driver: null, odometer: Number(odometer) || 0, location: { lat: 18.52, lng: 73.85 }, speed: 0,
+    lastService: '', insurance: insurance || '', fitness: fitness || '', permit: permit || '',
+    utilization: 0, purchasedAgency: purchasedAgency || '', vehicleValue: Number(vehicleValue) || 0,
+    emiEnabled: emiEnabled || 'No', monthlyEMI: Number(monthlyEMI) || 0, loanBank: loanBank || '',
+    // Mock-only fields, no Postgres column yet (see VEHICLE_MOCK_ONLY_FIELDS) —
+    // kept in-memory only, same as driver verification fields.
+    purchaseDate: purchaseDate || '', loanAmount: Number(loanAmount) || 0,
+    loanTenureMonths: Number(loanTenureMonths) || 0, loanStartDate: loanStartDate || '',
+    emisPaid: 0, emiHistory: [],
+    rcVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'Parivahan (VAHAN)', details: null },
+  };
+  try {
+    await prisma.vehicle.create({ data: {
+      id: newVehicle.id, regNumber: newVehicle.regNumber, make: newVehicle.make, model: newVehicle.model,
+      year: newVehicle.year, category: newVehicle.category, ownershipType: newVehicle.ownershipType,
+      capacity: newVehicle.capacity, fuelType: newVehicle.fuelType, status: newVehicle.status,
+      driverId: null, odometer: newVehicle.odometer, location: newVehicle.location, speed: newVehicle.speed,
+      lastService: newVehicle.lastService, insurance: newVehicle.insurance, fitness: newVehicle.fitness,
+      permit: newVehicle.permit, utilization: newVehicle.utilization, purchasedAgency: newVehicle.purchasedAgency,
+      vehicleValue: newVehicle.vehicleValue, emiEnabled: newVehicle.emiEnabled, monthlyEMI: newVehicle.monthlyEMI,
+      loanBank: newVehicle.loanBank,
+    }});
+  } catch (e) {
+    console.error('Failed to persist vehicle:', e.message);
+    return res.status(500).json({ error: 'Failed to save vehicle. Please try again.' });
+  }
+  vehicles.unshift(newVehicle);
+  logAudit(req, 'fleet.add', { vehicleId: newVehicle.id, regNumber: newVehicle.regNumber });
+  res.json(newVehicle);
+});
 
 app.patch('/api/fleet/:id/emi-payment', auth, (req, res) => {
   const v = vehicles.find(v => v.id === req.params.id);

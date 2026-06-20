@@ -65,6 +65,7 @@ export const api = {
   dashboard: () => request('/dashboard'),
   fleet: () => request('/fleet'),
   fleetById: (id: string) => request(`/fleet/${id}`),
+  createVehicle: (data: object) => request('/fleet', { method: 'POST', body: JSON.stringify(data) }),
   drivers: () => request('/drivers'),
   driverById: (id: string) => request(`/drivers/${id}`),
   addDriver: (data: object) => request('/drivers', { method: 'POST', body: JSON.stringify(data) }),
