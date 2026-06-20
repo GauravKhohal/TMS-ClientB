@@ -135,6 +135,14 @@ model Trip {
   pod              Boolean
   delay            Int
   notes            String?
+  placementConfirmed Boolean @default(false)
+  placementDateTime  String?
+  placementRemarks   String?
+  cnNumber           String?
+  cnDate             String?
+  consigneeName      String?
+  consigneeAddress   String?
+  consigneeContact   String?
   createdAt        DateTime @default(now())
 }
 

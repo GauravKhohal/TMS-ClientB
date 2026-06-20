@@ -106,6 +106,10 @@ function tripDbFields(t) {
     plannedDate: t.plannedDate, actualDeparture: t.actualDeparture, eta: t.eta, distance: t.distance,
     approxTimeHrs: t.approxTimeHrs, plannedKm: t.plannedKm, actualKm: t.actualKm, tollCost: t.tollCost,
     fuelCost: t.fuelCost, revenue: t.revenue, pod: t.pod, delay: t.delay, notes: t.notes ?? null,
+    placementConfirmed: t.placementConfirmed ?? false, placementDateTime: t.placementDateTime ?? null,
+    placementRemarks: t.placementRemarks ?? null, cnNumber: t.cnNumber ?? null, cnDate: t.cnDate ?? null,
+    consigneeName: t.consigneeName ?? null, consigneeAddress: t.consigneeAddress ?? null,
+    consigneeContact: t.consigneeContact ?? null,
   };
 }
 
@@ -523,37 +527,53 @@ app.patch('/api/trips/:id/reject', auth, requireRole('Fleet Manager'), async (re
   res.json({ success: true, trip });
 });
 
-// Vehicle placement and CN fields aren't in the Prisma schema yet, so they live
-// in-memory only (like other mock data) until a migration adds them.
-app.patch('/api/trips/:id/placement', auth, requireRole('Fleet Manager', 'Dispatcher'), (req, res) => {
+app.patch('/api/trips/:id/placement', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
   const trip = trips.find(t => t.id === req.params.id);
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
   const { vehicleId, driverId, placementDateTime, placementRemarks } = req.body;
   if (!vehicleId || !driverId || !placementDateTime) {
     return res.status(400).json({ error: 'Vehicle, driver and placement date/time are required' });
   }
+  const remarks = placementRemarks || '';
+  try {
+    await prisma.trip.update({ where: { id: trip.id }, data: {
+      vehicleId, driverId, placementDateTime, placementRemarks: remarks, placementConfirmed: true,
+    }});
+  } catch (e) {
+    console.error('Failed to persist trip placement:', e.message);
+    return res.status(500).json({ error: 'Failed to save placement. Please try again.' });
+  }
   trip.vehicleId = vehicleId;
   trip.driverId = driverId;
   trip.placementDateTime = placementDateTime;
-  trip.placementRemarks = placementRemarks || '';
+  trip.placementRemarks = remarks;
   trip.placementConfirmed = true;
   logAudit(req, 'trip.placement', { tripId: trip.id, vehicleId, driverId, placementDateTime });
   res.json({ success: true, trip });
 });
 
-app.patch('/api/trips/:id/cn', auth, requireRole('Fleet Manager', 'Dispatcher'), (req, res) => {
+app.patch('/api/trips/:id/cn', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
   const trip = trips.find(t => t.id === req.params.id);
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
   if (!trip.placementConfirmed) return res.status(400).json({ error: 'Vehicle placement must be confirmed before generating a CN' });
   const { consigneeName, consigneeAddress, consigneeContact } = req.body;
   if (!consigneeName || !consigneeAddress) return res.status(400).json({ error: 'Consignee name and address are required' });
+  const contact   = consigneeContact || '';
+  const cnNumber  = trip.cnNumber || ('CN' + trip.id.slice(1));
+  const cnDate    = trip.cnDate   || new Date().toISOString().split('T')[0];
+  try {
+    await prisma.trip.update({ where: { id: trip.id }, data: {
+      consigneeName, consigneeAddress, consigneeContact: contact, cnNumber, cnDate,
+    }});
+  } catch (e) {
+    console.error('Failed to persist trip CN:', e.message);
+    return res.status(500).json({ error: 'Failed to save CN. Please try again.' });
+  }
   trip.consigneeName = consigneeName;
   trip.consigneeAddress = consigneeAddress;
-  trip.consigneeContact = consigneeContact || '';
-  if (!trip.cnNumber) {
-    trip.cnNumber = 'CN' + trip.id.slice(1);
-    trip.cnDate = new Date().toISOString().split('T')[0];
-  }
+  trip.consigneeContact = contact;
+  trip.cnNumber = cnNumber;
+  trip.cnDate = cnDate;
   logAudit(req, 'trip.cn_generate', { tripId: trip.id, cnNumber: trip.cnNumber });
   res.json({ success: true, trip });
 });
@@ -608,13 +628,15 @@ app.post('/api/consignments', auth, requireRole('Fleet Manager', 'Dispatcher'), 
   consignments.unshift(newCn);
   logAudit(req, 'consignment.create', { cnNumber, vehicleId, source, destination, consignor, consignee });
 
-  // Mark the linked trip as CN-issued (backward compat with placement flow).
-  // cnNumber/cnDate aren't in the Trip Prisma schema yet (same known gap as
-  // /api/trips/:id/cn), so this stays in-memory only until that's migrated.
+  // Mark the linked trip as CN-issued (backward compat with placement flow) — best
+  // effort: a failure here doesn't roll back the consignment that was just saved.
   const trip = trips.find(t => t.id === againstNo || t.voucherNo === againstNo);
   if (trip && !trip.cnNumber) {
-    trip.cnNumber = cnNumber;
-    trip.cnDate   = cnDate;
+    try {
+      await prisma.trip.update({ where: { id: trip.id }, data: { cnNumber, cnDate } });
+      trip.cnNumber = cnNumber;
+      trip.cnDate   = cnDate;
+    } catch (e) { console.error('Failed to patch trip CN:', e.message); }
   }
 
   res.json(newCn);
