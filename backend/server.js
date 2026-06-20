@@ -90,7 +90,10 @@ function tripDbFields(t) {
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5001;
-const JWT_SECRET = process.env.JWT_SECRET || 'tms-secret-2026';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET env var is required — refusing to start with a guessable default.');
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // No wildcard: '*' combined with credentials is rejected by browsers anyway, and
 // silently allowing all origins in production would undo CORS protection entirely.
@@ -1317,7 +1320,7 @@ seedIfEmpty('accounts', [
 ]);
 
 const io = new Server(server, {
-  cors: { origin: process.env.FRONTEND_URL || '*', credentials: true }
+  cors: { origin: allowedOrigins, credentials: true }
 });
 
 const onlineUsers = new Map(); // socketId → { userId, userName, role }
