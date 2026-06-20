@@ -97,7 +97,9 @@ function tripDbFields(t) {
     vehicleId: t.vehicleId, customer: t.customer, customerType: t.customerType ?? 'Market', contactPerson: t.contactPerson, contactNo: t.contactNo,
     address: t.address, category: t.category, segment: t.segment, businessGroup: t.businessGroup,
     employeeId: t.employeeId, placementDate: t.placementDate, noOfVehicles: t.noOfVehicles,
-    vehicleLoadType: t.vehicleLoadType, cargo: t.cargo, content: t.content, rateType: t.rateType,
+    // cargo is a required legacy column the frontend never actually populates
+    // (it only sends `content`) — default it so trip creation doesn't fail.
+    vehicleLoadType: t.vehicleLoadType, cargo: t.cargo ?? t.content ?? '', content: t.content, rateType: t.rateType,
     weight: t.weight, packages: t.packages, rate: t.rate, freight: t.freight, loadingCharges: t.loadingCharges,
     unloadingCharges: t.unloadingCharges, otherCharges: t.otherCharges, commission: t.commission, advance: t.advance,
     paymentTerms: t.paymentTerms, creditDays: t.creditDays, total: t.total, balance: t.balance, volume: t.volume,
@@ -331,8 +333,6 @@ app.post('/api/drivers', auth, requireRole('Fleet Manager', 'Dispatcher'), async
     panVerification: { status: 'Not Verified', lastChecked: null, refId: null, source: 'NSDL e-Gov', details: null },
     photo: photo || null,
   };
-  drivers.unshift(newDriver);
-  logAudit(req, 'driver.add', { driverId: newDriver.id, name: newDriver.name });
   try {
     await prisma.driver.create({ data: {
       id: newDriver.id, name: newDriver.name, phone: newDriver.phone, altPhone: newDriver.altPhone,
@@ -345,20 +345,29 @@ app.post('/api/drivers', auth, requireRole('Fleet Manager', 'Dispatcher'), async
       status: 'Active', assignedVehicle: null,
       fuelScore: 0, safetyScore: 0, onTimeDelivery: 0, customerRating: 0,
       totalTrips: 0, totalKm: 0, violations: 0, attendance: 100,
-      dlVerification: newDriver.dlVerification, panVerification: newDriver.panVerification,
+      // dlVerification/panVerification have no Postgres column yet (see
+      // DRIVER_MOCK_ONLY_FIELDS) — kept in-memory only, like the rest of that set.
       photo: newDriver.photo,
     }});
-  } catch (e) { console.error('Failed to persist driver:', e.message); }
+  } catch (e) {
+    console.error('Failed to persist driver:', e.message);
+    return res.status(500).json({ error: 'Failed to save driver. Please try again.' });
+  }
+  drivers.unshift(newDriver);
+  logAudit(req, 'driver.add', { driverId: newDriver.id, name: newDriver.name });
   res.json(newDriver);
 });
 
 app.patch('/api/drivers/:id/photo', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
   const driver = drivers.find(d => d.id === req.params.id);
   if (!driver) return res.status(404).json({ error: 'Driver not found' });
-  const { photo } = req.body;
-  driver.photo = photo || null;
-  try { await prisma.driver.update({ where: { id: driver.id }, data: { photo: driver.photo } }); }
-  catch (e) { console.error('Failed to persist driver photo:', e.message); }
+  const photo = req.body.photo || null;
+  try { await prisma.driver.update({ where: { id: driver.id }, data: { photo } }); }
+  catch (e) {
+    console.error('Failed to persist driver photo:', e.message);
+    return res.status(500).json({ error: 'Failed to save photo. Please try again.' });
+  }
+  driver.photo = photo;
   logAudit(req, 'driver.photo.update', { driverId: driver.id, driverName: driver.name });
   res.json({ success: true, photo: driver.photo });
 });
@@ -367,12 +376,16 @@ app.patch('/api/drivers/:id/bank-details', auth, requireRole('Accountant', 'Flee
   const driver = drivers.find(d => d.id === req.params.id);
   if (!driver) return res.status(404).json({ error: 'Driver not found' });
   const { bankName, accountNumber, ifsc, upiId } = req.body;
-  driver.bankDetails = {
+  const bankDetails = {
     bankName: bankName || '', accountNumber: accountNumber || '',
     ifsc: ifsc || '', upiId: upiId || '',
   };
-  try { await prisma.driver.update({ where: { id: driver.id }, data: { bankDetails: driver.bankDetails } }); }
-  catch (e) { console.error('Failed to persist driver bank details:', e.message); }
+  try { await prisma.driver.update({ where: { id: driver.id }, data: { bankDetails } }); }
+  catch (e) {
+    console.error('Failed to persist driver bank details:', e.message);
+    return res.status(500).json({ error: 'Failed to save bank details. Please try again.' });
+  }
+  driver.bankDetails = bankDetails;
   logAudit(req, 'driver.bank_details.update', { driverId: driver.id, driverName: driver.name });
   res.json({ success: true, driver });
 });
@@ -399,10 +412,13 @@ app.post('/api/trips', auth, requireRole('Fleet Manager', 'Dispatcher'), async (
     actualDeparture: null, actualKm: 0, tollCost: 0, fuelCost: 0, pod: false, delay: 0,
     stops: (data.viaStops || []).map(s => s.city),
   };
+  try { await prisma.trip.create({ data: { id: newTrip.id, ...tripDbFields(newTrip) } }); }
+  catch (e) {
+    console.error('Failed to persist new trip:', e.message);
+    return res.status(500).json({ error: 'Failed to create trip. Please try again.' });
+  }
   trips.unshift(newTrip);
   logAudit(req, 'trip.create', { tripId: newTrip.id, origin: newTrip.origin, destination: newTrip.destination, customer: newTrip.customer, vehicleId: newTrip.vehicleId, driverId: newTrip.driverId, freight: newTrip.freight });
-  try { await prisma.trip.create({ data: { id: newTrip.id, ...tripDbFields(newTrip) } }); }
-  catch (e) { console.error('Failed to persist new trip:', e.message); }
   res.json({ success: true, trip: newTrip });
 });
 
@@ -416,13 +432,18 @@ app.patch('/api/trips/:id', auth, requireRole('Fleet Manager', 'Dispatcher'), as
     'freight','loadingCharges','unloadingCharges','otherCharges','commission',
     'advance','paymentTerms','creditDays','total','balance',
     'vehicleId','driverId','plannedDate','eta','distance','approxTimeHrs','viaStops','stops','notes'];
-  allowed.forEach(k => { if (req.body[k] !== undefined) trip[k] = req.body[k]; });
-  trip.total   = trip.freight + trip.loadingCharges + trip.unloadingCharges + trip.otherCharges - trip.commission;
-  trip.balance = trip.total - trip.advance;
+  const updated = { ...trip };
+  allowed.forEach(k => { if (req.body[k] !== undefined) updated[k] = req.body[k]; });
+  updated.total   = updated.freight + updated.loadingCharges + updated.unloadingCharges + updated.otherCharges - updated.commission;
+  updated.balance = updated.total - updated.advance;
+  try { await prisma.trip.update({ where: { id: trip.id }, data: tripDbFields(updated) }); }
+  catch (e) {
+    console.error('Failed to persist trip edit:', e.message);
+    return res.status(500).json({ error: 'Failed to save changes. Please try again.' });
+  }
+  Object.assign(trip, updated);
   const after = FINANCIAL_FIELDS.reduce((o, k) => ({ ...o, [k]: trip[k] }), {});
   const changed = FINANCIAL_FIELDS.filter(k => before[k] !== after[k]);
-  try { await prisma.trip.update({ where: { id: trip.id }, data: tripDbFields(trip) }); }
-  catch (e) { console.error('Failed to persist trip edit:', e.message); }
   logAudit(req, 'trip.edit', { tripId: trip.id, fields: Object.keys(req.body), ...(changed.length ? { financialChanges: changed.map(k => ({ field: k, before: before[k], after: after[k] })) } : {}) });
   res.json({ success: true, trip });
 });
@@ -430,10 +451,13 @@ app.patch('/api/trips/:id', auth, requireRole('Fleet Manager', 'Dispatcher'), as
 app.patch('/api/trips/:id/approve', auth, requireRole('Fleet Manager'), async (req, res) => {
   const trip = trips.find(t => t.id === req.params.id);
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  try { await prisma.trip.update({ where: { id: trip.id }, data: { approvalStatus: 'Approved', status: 'Planned' } }); }
+  catch (e) {
+    console.error('Failed to persist trip approval:', e.message);
+    return res.status(500).json({ error: 'Failed to approve trip. Please try again.' });
+  }
   trip.approvalStatus = 'Approved';
   trip.status = 'Planned';
-  try { await prisma.trip.update({ where: { id: trip.id }, data: { approvalStatus: trip.approvalStatus, status: trip.status } }); }
-  catch (e) { console.error('Failed to persist trip approval:', e.message); }
   logAudit(req, 'trip.approve', { tripId: trip.id, customer: trip.customer });
 
   const whatsapp = await notifyDriverOfApprovedTrip(trip);
@@ -447,11 +471,14 @@ app.patch('/api/trips/:id/reject', auth, requireRole('Fleet Manager'), async (re
   if (!trip) return res.status(404).json({ error: 'Trip not found' });
   const { reason } = req.body;
   if (!reason) return res.status(400).json({ error: 'Rejection reason is required' });
+  try { await prisma.trip.update({ where: { id: trip.id }, data: { approvalStatus: 'Rejected', status: 'Cancelled', rejectionReason: reason } }); }
+  catch (e) {
+    console.error('Failed to persist trip rejection:', e.message);
+    return res.status(500).json({ error: 'Failed to reject trip. Please try again.' });
+  }
   trip.approvalStatus = 'Rejected';
   trip.status = 'Cancelled';
   trip.rejectionReason = reason;
-  try { await prisma.trip.update({ where: { id: trip.id }, data: { approvalStatus: trip.approvalStatus, status: trip.status, rejectionReason: trip.rejectionReason } }); }
-  catch (e) { console.error('Failed to persist trip rejection:', e.message); }
   logAudit(req, 'trip.reject', { tripId: trip.id, customer: trip.customer, reason });
   res.json({ success: true, trip });
 });
@@ -533,22 +560,22 @@ app.post('/api/consignments', auth, requireRole('Fleet Manager', 'Dispatcher'), 
     createdBy: req.user?.name || 'System',
   };
 
+  try { await prisma.consignment.create({ data: newCn }); }
+  catch (e) {
+    console.error('Failed to persist consignment:', e.message);
+    return res.status(500).json({ error: 'Failed to save consignment. Please try again.' });
+  }
   consignments.unshift(newCn);
+  logAudit(req, 'consignment.create', { cnNumber, vehicleId, source, destination, consignor, consignee });
 
-  // Mark the linked trip as CN-issued (backward compat with placement flow)
+  // Mark the linked trip as CN-issued (backward compat with placement flow).
+  // cnNumber/cnDate aren't in the Trip Prisma schema yet (same known gap as
+  // /api/trips/:id/cn), so this stays in-memory only until that's migrated.
   const trip = trips.find(t => t.id === againstNo || t.voucherNo === againstNo);
   if (trip && !trip.cnNumber) {
     trip.cnNumber = cnNumber;
     trip.cnDate   = cnDate;
-    try {
-      const { vehicleId: _v, ...tripUpdate } = { cnNumber, cnDate };
-      await prisma.trip.update({ where: { id: trip.id }, data: { cnNumber, cnDate } });
-    } catch (e) { console.error('Failed to patch trip CN:', e.message); }
   }
-
-  logAudit(req, 'consignment.create', { cnNumber, vehicleId, source, destination, consignor, consignee });
-  try { await prisma.consignment.create({ data: newCn }); }
-  catch (e) { console.error('Failed to persist consignment:', e.message); }
 
   res.json(newCn);
 });
@@ -578,10 +605,13 @@ app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (r
     fuelCardUsed: !!fuelCardUsed,
     tripId: tripId || null,
   };
+  try { await prisma.fuelEntry.create({ data: newEntry }); }
+  catch (e) {
+    console.error('Failed to persist fuel entry:', e.message);
+    return res.status(500).json({ error: 'Failed to save fuel entry. Please try again.' });
+  }
   fuelEntries.unshift(newEntry);
   logAudit(req, 'fuel.add', { entryId: newEntry.id, vehicleId, liters, totalCost: newEntry.totalCost });
-  try { await prisma.fuelEntry.create({ data: newEntry }); }
-  catch (e) { console.error('Failed to persist fuel entry:', e.message); }
   res.json(newEntry);
 });
 
@@ -603,10 +633,13 @@ app.post('/api/maintenance', auth, requireRole('Fleet Manager', 'Dispatcher'), a
     estimatedCompletion: estimatedCompletion || '',
     parts: Array.isArray(parts) ? parts : [],
   };
+  try { await prisma.maintenanceRecord.create({ data: newRecord }); }
+  catch (e) {
+    console.error('Failed to persist maintenance record:', e.message);
+    return res.status(500).json({ error: 'Failed to save maintenance record. Please try again.' });
+  }
   maintenanceRecords.unshift(newRecord);
   logAudit(req, 'maintenance.add', { recordId: newRecord.id, vehicleId, type, cost: newRecord.cost });
-  try { await prisma.maintenanceRecord.create({ data: newRecord }); }
-  catch (e) { console.error('Failed to persist maintenance record:', e.message); }
   res.json(newRecord);
 });
 
@@ -654,14 +687,17 @@ app.put('/api/compliance/:vehicleId', auth, requireRole('Fleet Manager'), async 
     nationalPermit: { expiry: nationalPermit?.expiry || '' },
   };
 
-  const idx = complianceRecords.findIndex(c => c.vehicleId === vehicleId);
-  if (idx >= 0) complianceRecords[idx] = record; else complianceRecords.push(record);
-
-  logAudit(req, 'compliance.update', { vehicleId });
   try {
     const { vehicleId: _vid, ...data } = record;
     await prisma.complianceRecord.upsert({ where: { vehicleId }, create: record, update: data });
-  } catch (e) { console.error('Failed to persist compliance record:', e.message); }
+  } catch (e) {
+    console.error('Failed to persist compliance record:', e.message);
+    return res.status(500).json({ error: 'Failed to save compliance record. Please try again.' });
+  }
+
+  const idx = complianceRecords.findIndex(c => c.vehicleId === vehicleId);
+  if (idx >= 0) complianceRecords[idx] = record; else complianceRecords.push(record);
+  logAudit(req, 'compliance.update', { vehicleId });
 
   res.json(computeComplianceRecord(vehicleId));
 });
