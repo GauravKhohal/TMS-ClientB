@@ -14,9 +14,10 @@ const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
-// Persistent store for users/vehicles/drivers/trips/audit log. Other modules (fuel,
-// maintenance, compliance, alerts, costing, toll, chat...) remain in-memory mock data
-// for now — migrate incrementally as each one needs to survive a restart.
+// Persistent store for users/vehicles/drivers/trips/fuel/maintenance/compliance/
+// consignments/audit log/petty cash/FASTag/spares/tyres/payout pool. Alerts, login
+// history, page visits, costing, and toll reconciliation remain in-memory mock data
+// for now — migrate incrementally if/when they need to survive a restart.
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 // Fields that exist on the mock vehicle/driver records but not yet as Postgres
@@ -34,7 +35,8 @@ function pickFields(obj, fields) {
 // Replaces the in-memory arrays' contents (in place, since routes elsewhere hold
 // references to these `const` arrays) with rows loaded from Postgres at boot.
 async function loadFromDatabase() {
-  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries, dbMaintenanceRecords, dbComplianceRecords, dbConsignments] = await Promise.all([
+  const [dbUsers, dbVehicles, dbDrivers, dbTrips, dbFuelEntries, dbMaintenanceRecords, dbComplianceRecords, dbConsignments,
+    dbPettyCash, dbFastagAccounts, dbFastagTransactions, dbPayoutPool, dbSpareParts, dbSpareLedger, dbTyres] = await Promise.all([
     prisma.user.findMany(),
     prisma.vehicle.findMany(),
     prisma.driver.findMany(),
@@ -43,6 +45,13 @@ async function loadFromDatabase() {
     prisma.maintenanceRecord.findMany({ orderBy: { createdAt: 'desc' } }),
     prisma.complianceRecord.findMany(),
     prisma.consignment.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.pettyCash.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.fastagAccount.findMany(),
+    prisma.fastagTransaction.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.payoutPool.findUnique({ where: { id: 'singleton' } }),
+    prisma.sparePart.findMany(),
+    prisma.spareLedgerEntry.findMany({ orderBy: { createdAt: 'desc' } }),
+    prisma.tyre.findMany({ orderBy: { createdAt: 'desc' } }),
   ]);
   // DB is always authoritative — no fallback to mock data
   users.splice(0, users.length, ...dbUsers);
@@ -53,6 +62,21 @@ async function loadFromDatabase() {
   maintenanceRecords.splice(0, maintenanceRecords.length, ...dbMaintenanceRecords);
   complianceRecords.splice(0, complianceRecords.length, ...dbComplianceRecords);
   consignments.splice(0, consignments.length, ...dbConsignments);
+  pettyCash.splice(0, pettyCash.length, ...dbPettyCash);
+  fastagAccounts.splice(0, fastagAccounts.length, ...dbFastagAccounts);
+  fastagTransactions.splice(0, fastagTransactions.length, ...dbFastagTransactions);
+  spareParts.splice(0, spareParts.length, ...dbSpareParts);
+  spareLedger.splice(0, spareLedger.length, ...dbSpareLedger);
+  tyres.splice(0, tyres.length, ...dbTyres);
+
+  // Payout pool is a single settings-style row — seed it on first boot, same as
+  // the admin user below, instead of letting it silently start at all-zeros.
+  if (dbPayoutPool) {
+    Object.assign(payoutPool, dbPayoutPool);
+  } else {
+    try { await prisma.payoutPool.create({ data: { id: 'singleton', ...payoutPool } }); }
+    catch (e) { console.error('Payout pool seed failed:', e.message); }
+  }
 
   // Auto-seed admin on first boot so login works even on a fresh database
   if (users.length === 0) {
@@ -85,7 +109,7 @@ async function loadFromDatabase() {
     }
   } catch (e) { console.error('Audit log backfill failed:', e.message); }
 
-  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records, ${consignments.length} consignments`);
+  console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records, ${consignments.length} consignments, ${pettyCash.length} petty cash entries, ${fastagAccounts.length} fastag accounts, ${fastagTransactions.length} fastag transactions, ${spareParts.length} spare parts, ${spareLedger.length} spare ledger entries, ${tyres.length} tyres`);
 }
 
 // Picks exactly the columns the Trip table has, so create/update calls don't choke
@@ -1109,15 +1133,20 @@ app.get('/api/fasttag/transactions', auth, (req, res) => {
   res.json({ transactions: txns, total: txns.length });
 });
 
-app.post('/api/fasttag/sync', auth, requireRole('Accountant', 'Fleet Manager'), (req, res) => {
+app.post('/api/fasttag/sync', auth, requireRole('Accountant', 'Fleet Manager'), async (req, res) => {
   // Simulate bank API call — in real integration replace this with actual bank API fetch
-  lastSyncedAt = new Date().toISOString();
   const newTxn = {
     txnId: 'FTX' + (fastagTransactions.length + 1).toString().padStart(3, '0'),
     vehicleId: 'V003', regNumber: 'GJ-01-EF-9012', bank: 'SBI',
     plaza: 'Pune (Khalapur) Toll', highway: 'NH-48', amount: 340,
     timestamp: new Date().toISOString(), tripId: 'T003', matched: true,
   };
+  try { await prisma.fastagTransaction.create({ data: newTxn }); }
+  catch (e) {
+    console.error('Failed to persist fastag transaction:', e.message);
+    return res.status(500).json({ error: 'Sync failed. Please try again.' });
+  }
+  lastSyncedAt = new Date().toISOString();
   fastagTransactions.unshift(newTxn);
   res.json({ success: true, lastSyncedAt, newTransactions: 1, message: 'Synced 1 new transaction from SBI FASTag API' });
 });
@@ -1129,37 +1158,53 @@ app.patch('/api/fasttag/settings', auth, requireRole('Accountant', 'Fleet Manage
 });
 
 // Add new FASTag account for a vehicle
-app.post('/api/fasttag/accounts', auth, requireRole('Accountant', 'Fleet Manager'), (req, res) => {
+app.post('/api/fasttag/accounts', auth, requireRole('Accountant', 'Fleet Manager'), async (req, res) => {
   const { vehicleId, fastagId, bank } = req.body;
   if (!vehicleId || !fastagId || !bank) return res.status(400).json({ error: 'vehicleId, fastagId, bank required' });
   const vehicle = vehicles.find(v => v.id === vehicleId);
   if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
   const existing = fastagAccounts.findIndex(a => a.vehicleId === vehicleId);
-  const account = {
-    vehicleId, regNumber: vehicle.regNumber, fastagId, bank,
-    balance: 0, status: 'Active', lastTransaction: new Date().toISOString(),
-  };
-  if (existing >= 0) { fastagAccounts[existing] = { ...fastagAccounts[existing], fastagId, bank }; }
-  else { fastagAccounts.push(account); }
-  res.json({ success: true, account: existing >= 0 ? fastagAccounts[existing] : account });
+  const account = existing >= 0
+    ? { ...fastagAccounts[existing], fastagId, bank }
+    : { vehicleId, regNumber: vehicle.regNumber, fastagId, bank, balance: 0, status: 'Active', lastTransaction: new Date().toISOString() };
+  try {
+    await prisma.fastagAccount.upsert({ where: { vehicleId }, create: account, update: { fastagId, bank } });
+  } catch (e) {
+    console.error('Failed to persist fastag account:', e.message);
+    return res.status(500).json({ error: 'Failed to save FASTag account. Please try again.' });
+  }
+  if (existing >= 0) fastagAccounts[existing] = account; else fastagAccounts.push(account);
+  res.json({ success: true, account });
 });
 
 // Edit FASTag account (update ID, bank, topup balance)
-app.patch('/api/fasttag/accounts/:vehicleId', auth, requireRole('Accountant', 'Fleet Manager'), (req, res) => {
+app.patch('/api/fasttag/accounts/:vehicleId', auth, requireRole('Accountant', 'Fleet Manager'), async (req, res) => {
   const acct = fastagAccounts.find(a => a.vehicleId === req.params.vehicleId);
   if (!acct) return res.status(404).json({ error: 'FASTag account not found' });
   const { fastagId, bank, balance } = req.body;
-  if (fastagId !== undefined) acct.fastagId = fastagId;
-  if (bank !== undefined) acct.bank = bank;
-  if (balance !== undefined) { acct.balance = Number(balance); acct.status = balance < 500 ? 'Low Balance' : 'Active'; }
+  const updates = {};
+  if (fastagId !== undefined) updates.fastagId = fastagId;
+  if (bank !== undefined) updates.bank = bank;
+  if (balance !== undefined) { updates.balance = Number(balance); updates.status = balance < 500 ? 'Low Balance' : 'Active'; }
+  try { await prisma.fastagAccount.update({ where: { vehicleId: acct.vehicleId }, data: updates }); }
+  catch (e) {
+    console.error('Failed to persist fastag account update:', e.message);
+    return res.status(500).json({ error: 'Failed to save changes. Please try again.' });
+  }
+  Object.assign(acct, updates);
   res.json({ success: true, account: acct });
 });
 
-app.patch('/api/fasttag/link/:txnId', auth, requireRole('Accountant', 'Fleet Manager'), (req, res) => {
+app.patch('/api/fasttag/link/:txnId', auth, requireRole('Accountant', 'Fleet Manager'), async (req, res) => {
   const { tripId } = req.body;
   const txn = fastagTransactions.find(t => t.txnId === req.params.txnId);
   if (!txn) return res.status(404).json({ error: 'Transaction not found' });
   const prevTripId = txn.tripId;
+  try { await prisma.fastagTransaction.update({ where: { txnId: txn.txnId }, data: { tripId, matched: true } }); }
+  catch (e) {
+    console.error('Failed to persist fastag link:', e.message);
+    return res.status(500).json({ error: 'Failed to link transaction. Please try again.' });
+  }
   txn.tripId = tripId;
   txn.matched = true;
   logAudit(req, 'fasttag.transaction.link', { txnId: req.params.txnId, vehicleId: txn.vehicleId, amount: txn.amount, plaza: txn.plaza, previousTripId: prevTripId, newTripId: tripId });
@@ -1182,30 +1227,50 @@ app.get('/api/payouts/pool', auth, (req, res) => {
   res.json({ ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold });
 });
 
-app.post('/api/payouts/pool/load', auth, requireRole('Accountant'), (req, res) => {
+app.post('/api/payouts/pool/load', auth, requireRole('Accountant'), async (req, res) => {
   const { amount } = req.body;
   if (!amount || Number(amount) <= 0) return res.status(400).json({ error: 'Valid amount required' });
-  payoutPool.totalLoaded += Number(amount);
-  payoutPool.balance += Number(amount);
-  logAudit(req, 'payout.pool.load', { amount: Number(amount), newBalance: payoutPool.balance });
+  const amt = Number(amount);
+  const newTotalLoaded = payoutPool.totalLoaded + amt;
+  const newBalance = payoutPool.balance + amt;
+  try { await prisma.payoutPool.update({ where: { id: 'singleton' }, data: { totalLoaded: newTotalLoaded, balance: newBalance } }); }
+  catch (e) {
+    console.error('Failed to persist payout pool load:', e.message);
+    return res.status(500).json({ error: 'Failed to load funds. Please try again.' });
+  }
+  payoutPool.totalLoaded = newTotalLoaded;
+  payoutPool.balance = newBalance;
+  logAudit(req, 'payout.pool.load', { amount: amt, newBalance: payoutPool.balance });
   res.json({ success: true, pool: { ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold } });
 });
 
-app.patch('/api/petty-cash/:id/reconcile', auth, requireRole('Accountant'), (req, res) => {
+app.patch('/api/petty-cash/:id/reconcile', auth, requireRole('Accountant'), async (req, res) => {
   const entry = pettyCash.find(p => p.id === req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
   const { diesel = 0, toll = 0, food = 0, maintenance = 0, misc = 0, notes = '' } = req.body;
+  const totalSpent = diesel + toll + food + maintenance + misc;
+  const balance = entry.cashIssued - totalSpent;
+  const status = balance >= 0 ? 'Settled' : 'Short Paid';
+  const settledDate = new Date().toISOString().split('T')[0];
+  try {
+    await prisma.pettyCash.update({ where: { id: entry.id }, data: {
+      expenses: { diesel, toll, food, maintenance, misc }, totalSpent, balance, status, settledDate, notes,
+    }});
+  } catch (e) {
+    console.error('Failed to persist petty cash reconciliation:', e.message);
+    return res.status(500).json({ error: 'Failed to save reconciliation. Please try again.' });
+  }
   entry.expenses = { diesel, toll, food, maintenance, misc };
-  entry.totalSpent = diesel + toll + food + maintenance + misc;
-  entry.balance = entry.cashIssued - entry.totalSpent;
-  entry.status = entry.balance >= 0 ? 'Settled' : 'Short Paid';
-  entry.settledDate = new Date().toISOString().split('T')[0];
+  entry.totalSpent = totalSpent;
+  entry.balance = balance;
+  entry.status = status;
+  entry.settledDate = settledDate;
   entry.notes = notes;
   logAudit(req, 'pettycash.reconcile', { entryId: entry.id, totalSpent: entry.totalSpent, status: entry.status });
   res.json({ success: true, entry });
 });
 
-app.post('/api/petty-cash', auth, requireRole('Accountant'), (req, res) => {
+app.post('/api/petty-cash', auth, requireRole('Accountant'), async (req, res) => {
   const { tripId, driverId, cashIssued, issueDate, notes } = req.body;
   const driver = drivers.find(d => d.id === driverId);
   const trip = trips.find(t => t.id === tripId);
@@ -1223,13 +1288,18 @@ app.post('/api/petty-cash', auth, requireRole('Accountant'), (req, res) => {
     transferMode: driver?.bankDetails?.upiId ? 'UPI' : 'Bank Transfer',
     payoutId: null, payoutTime: null, failureReason: null,
   };
+  try { await prisma.pettyCash.create({ data: newEntry }); }
+  catch (e) {
+    console.error('Failed to persist petty cash entry:', e.message);
+    return res.status(500).json({ error: 'Failed to issue petty cash. Please try again.' });
+  }
   pettyCash.unshift(newEntry);
   logAudit(req, 'pettycash.issue', { entryId: newEntry.id, tripId, driverId, driverName: newEntry.driverName, cashIssued: newEntry.cashIssued });
   res.json({ success: true, entry: newEntry });
 });
 
 // Approve & transfer (or retry a failed transfer) — simulates a Razorpay/Cashfree Payouts API call
-app.patch('/api/petty-cash/:id/transfer', auth, requireRole('Fleet Manager'), (req, res) => {
+app.patch('/api/petty-cash/:id/transfer', auth, requireRole('Fleet Manager'), async (req, res) => {
   const entry = pettyCash.find(p => p.id === req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found' });
   if (entry.transferStatus !== 'Pending Approval' && entry.transferStatus !== 'Failed') {
@@ -1244,17 +1314,34 @@ app.patch('/api/petty-cash/:id/transfer', auth, requireRole('Fleet Manager'), (r
 
   // Simulate calling the payout API
   if (entry.transferAmount > payoutPool.balance) {
+    try { await prisma.pettyCash.update({ where: { id: entry.id }, data: { transferStatus: 'Failed', failureReason: 'Insufficient pool balance' } }); }
+    catch (e) {
+      console.error('Failed to persist transfer failure:', e.message);
+      return res.status(500).json({ error: 'Failed to process transfer. Please try again.' });
+    }
     entry.transferStatus = 'Failed';
     entry.failureReason = 'Insufficient pool balance';
     logAudit(req, 'pettycash.transfer.failed', { entryId: entry.id, driverId: entry.driverId, amount: entry.transferAmount, reason: entry.failureReason });
     return res.json({ success: true, entry, pool: { ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold } });
   }
 
-  payoutPool.balance -= entry.transferAmount;
+  const newPoolBalance = payoutPool.balance - entry.transferAmount;
+  const payoutId = 'pout_' + crypto.randomBytes(5).toString('hex');
+  const payoutTime = new Date().toISOString();
+  try {
+    await prisma.$transaction([
+      prisma.payoutPool.update({ where: { id: 'singleton' }, data: { balance: newPoolBalance } }),
+      prisma.pettyCash.update({ where: { id: entry.id }, data: { transferStatus: 'Success', failureReason: null, payoutId, payoutTime } }),
+    ]);
+  } catch (e) {
+    console.error('Failed to persist transfer success:', e.message);
+    return res.status(500).json({ error: 'Failed to process transfer. Please try again.' });
+  }
+  payoutPool.balance = newPoolBalance;
   entry.transferStatus = 'Success';
   entry.failureReason = null;
-  entry.payoutId = 'pout_' + crypto.randomBytes(5).toString('hex');
-  entry.payoutTime = new Date().toISOString();
+  entry.payoutId = payoutId;
+  entry.payoutTime = payoutTime;
   logAudit(req, 'pettycash.transfer.success', { entryId: entry.id, driverId: entry.driverId, driverName: entry.driverName, amount: entry.transferAmount, payoutId: entry.payoutId });
   res.json({ success: true, entry, pool: { ...payoutPool, lowBalance: payoutPool.balance < payoutPool.lowBalanceThreshold } });
 });
@@ -1275,7 +1362,22 @@ app.get('/api/tyres', auth, (req, res) => {
   res.json({ tyres, summary: { total: tyres.length, inUse, spare, underWarranty, critical, condemned, totalValue } });
 });
 
-app.post('/api/tyres', auth, requireRole('Fleet Manager'), (req, res) => {
+// Picks exactly the columns the Tyre table has — mirrors tripDbFields().
+function tyreDbFields(t) {
+  return {
+    vehicleId: t.vehicleId, regNumber: t.regNumber, serialNo: t.serialNo ?? '', brand: t.brand,
+    model: t.model ?? '', size: t.size ?? '', type: t.type ?? '', position: t.position ?? '',
+    purchaseDate: t.purchaseDate ?? '', purchasePrice: Number(t.purchasePrice) || 0,
+    vendor: t.vendor || '', invoiceNo: t.invoiceNo ?? '', warrantyType: t.warrantyType ?? '',
+    warrantyKm: Number(t.warrantyKm) || 0, warrantyExpiry: t.warrantyExpiry || null,
+    kmAtFitment: Number(t.kmAtFitment) || 0, expectedLifeKm: Number(t.expectedLifeKm) || 0,
+    currentKmRun: Number(t.currentKmRun) || 0, treadDepth: Number(t.treadDepth) || 0,
+    lastPressureCheck: t.lastPressureCheck ?? '', lastRotationDate: t.lastRotationDate || null,
+    retreads: Number(t.retreads) || 0, status: t.status || 'In Use', notes: t.notes ?? '',
+  };
+}
+
+app.post('/api/tyres', auth, requireRole('Fleet Manager'), async (req, res) => {
   const data = req.body;
   const vehicle = vehicles.find(v => v.id === data.vehicleId);
   const newTyre = {
@@ -1285,32 +1387,37 @@ app.post('/api/tyres', auth, requireRole('Fleet Manager'), (req, res) => {
     currentKmRun: data.currentKmRun || 0,
     retreads: data.retreads || 0,
   };
+  try { await prisma.tyre.create({ data: { id: newTyre.id, ...tyreDbFields(newTyre) } }); }
+  catch (e) {
+    console.error('Failed to persist tyre:', e.message);
+    return res.status(500).json({ error: 'Failed to save tyre. Please try again.' });
+  }
   tyres.unshift(newTyre);
   logAudit(req, 'tyre.add', { tyreId: newTyre.id, vehicleId: newTyre.vehicleId, brand: newTyre.brand, purchasePrice: newTyre.purchasePrice, vendor: newTyre.vendor });
   res.json({ success: true, tyre: newTyre });
 });
 
-app.patch('/api/tyres/:id', auth, requireRole('Fleet Manager'), (req, res) => {
+app.patch('/api/tyres/:id', auth, requireRole('Fleet Manager'), async (req, res) => {
   const tyre = tyres.find(t => t.id === req.params.id);
   if (!tyre) return res.status(404).json({ error: 'Tyre not found' });
-  Object.assign(tyre, req.body);
+  const updated = { ...tyre, ...req.body };
   if (req.body.vehicleId) {
     const vehicle = vehicles.find(v => v.id === req.body.vehicleId);
-    if (vehicle) tyre.regNumber = vehicle.regNumber;
+    if (vehicle) updated.regNumber = vehicle.regNumber;
   }
+  try { await prisma.tyre.update({ where: { id: tyre.id }, data: tyreDbFields(updated) }); }
+  catch (e) {
+    console.error('Failed to persist tyre update:', e.message);
+    return res.status(500).json({ error: 'Failed to save changes. Please try again.' });
+  }
+  Object.assign(tyre, updated);
   logAudit(req, 'tyre.update', { tyreId: tyre.id, vehicleId: tyre.vehicleId, fields: Object.keys(req.body) });
   res.json({ success: true, tyre });
 });
 
 // ── Spare Parts Management ──────────────────────────────────────────────────
-function addSpareLedgerEntry(req, data) {
-  const entry = {
-    id: 'SL' + String(spareLedger.length + 1).padStart(4, '0'),
-    ...data,
-    performedBy: req.user.name,
-  };
-  spareLedger.unshift(entry);
-  return entry;
+function buildSpareLedgerEntry(req, data) {
+  return { id: 'SL' + String(spareLedger.length + 1).padStart(4, '0'), ...data, performedBy: req.user.name };
 }
 
 app.get('/api/spares', auth, (req, res) => {
@@ -1322,7 +1429,7 @@ app.get('/api/spares', auth, (req, res) => {
 
 app.get('/api/spares/ledger', auth, (req, res) => res.json(spareLedger));
 
-app.post('/api/spares', auth, requireRole('Fleet Manager'), (req, res) => {
+app.post('/api/spares', auth, requireRole('Fleet Manager'), async (req, res) => {
   const data = req.body;
   const newPart = {
     id: 'SP' + String(spareParts.length + 1).padStart(3, '0'),
@@ -1330,48 +1437,76 @@ app.post('/api/spares', auth, requireRole('Fleet Manager'), (req, res) => {
     currentStock: Number(data.currentStock) || 0, reorderLevel: Number(data.reorderLevel) || 0,
     unitPrice: Number(data.unitPrice) || 0, vendor: data.vendor || '', location: data.location || '',
   };
-  spareParts.unshift(newPart);
-  if (newPart.currentStock > 0) {
-    addSpareLedgerEntry(req, {
-      partId: newPart.id, partName: newPart.name, type: 'IN', quantity: newPart.currentStock,
-      date: new Date().toISOString().split('T')[0], vehicleId: null, regNumber: null,
-      reference: 'Opening Stock', vendor: newPart.vendor, unitPrice: newPart.unitPrice,
-      notes: 'Initial stock entry', balanceAfter: newPart.currentStock,
-    });
+  const entry = newPart.currentStock > 0 ? buildSpareLedgerEntry(req, {
+    partId: newPart.id, partName: newPart.name, type: 'IN', quantity: newPart.currentStock,
+    date: new Date().toISOString().split('T')[0], vehicleId: null, regNumber: null,
+    reference: 'Opening Stock', vendor: newPart.vendor, unitPrice: newPart.unitPrice,
+    notes: 'Initial stock entry', balanceAfter: newPart.currentStock,
+  }) : null;
+  try {
+    await prisma.$transaction([
+      prisma.sparePart.create({ data: newPart }),
+      ...(entry ? [prisma.spareLedgerEntry.create({ data: entry })] : []),
+    ]);
+  } catch (e) {
+    console.error('Failed to persist spare part:', e.message);
+    return res.status(500).json({ error: 'Failed to save spare part. Please try again.' });
   }
+  spareParts.unshift(newPart);
+  if (entry) spareLedger.unshift(entry);
   logAudit(req, 'spares.add', { partId: newPart.id, name: newPart.name, currentStock: newPart.currentStock });
   res.json({ success: true, part: newPart });
 });
 
-app.patch('/api/spares/:id', auth, requireRole('Fleet Manager'), (req, res) => {
+app.patch('/api/spares/:id', auth, requireRole('Fleet Manager'), async (req, res) => {
   const part = spareParts.find(p => p.id === req.params.id);
   if (!part) return res.status(404).json({ error: 'Spare part not found' });
   const allowed = ['partNo', 'name', 'category', 'unit', 'reorderLevel', 'unitPrice', 'vendor', 'location'];
-  allowed.forEach(k => { if (req.body[k] !== undefined) part[k] = req.body[k]; });
+  const updates = {};
+  allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+  try { await prisma.sparePart.update({ where: { id: part.id }, data: updates }); }
+  catch (e) {
+    console.error('Failed to persist spare part update:', e.message);
+    return res.status(500).json({ error: 'Failed to save changes. Please try again.' });
+  }
+  Object.assign(part, updates);
   logAudit(req, 'spares.update', { partId: part.id, fields: Object.keys(req.body) });
   res.json({ success: true, part });
 });
 
-app.post('/api/spares/:id/stock-in', auth, requireRole('Fleet Manager'), (req, res) => {
+app.post('/api/spares/:id/stock-in', auth, requireRole('Fleet Manager'), async (req, res) => {
   const part = spareParts.find(p => p.id === req.params.id);
   if (!part) return res.status(404).json({ error: 'Spare part not found' });
   const quantity = Number(req.body.quantity);
   if (!quantity || quantity <= 0) return res.status(400).json({ error: 'Quantity must be a positive number' });
   const { vendor, reference, unitPrice, notes } = req.body;
-  part.currentStock += quantity;
-  if (unitPrice) part.unitPrice = Number(unitPrice);
-  if (vendor) part.vendor = vendor;
-  const entry = addSpareLedgerEntry(req, {
+  const newStock = part.currentStock + quantity;
+  const newUnitPrice = unitPrice ? Number(unitPrice) : part.unitPrice;
+  const newVendor = vendor || part.vendor;
+  const entry = buildSpareLedgerEntry(req, {
     partId: part.id, partName: part.name, type: 'IN', quantity,
     date: new Date().toISOString().split('T')[0], vehicleId: null, regNumber: null,
-    reference: reference || 'Restock', vendor: vendor || part.vendor, unitPrice: part.unitPrice,
-    notes: notes || '', balanceAfter: part.currentStock,
+    reference: reference || 'Restock', vendor: newVendor, unitPrice: newUnitPrice,
+    notes: notes || '', balanceAfter: newStock,
   });
+  try {
+    await prisma.$transaction([
+      prisma.sparePart.update({ where: { id: part.id }, data: { currentStock: newStock, unitPrice: newUnitPrice, vendor: newVendor } }),
+      prisma.spareLedgerEntry.create({ data: entry }),
+    ]);
+  } catch (e) {
+    console.error('Failed to persist stock-in:', e.message);
+    return res.status(500).json({ error: 'Failed to record stock-in. Please try again.' });
+  }
+  part.currentStock = newStock;
+  part.unitPrice = newUnitPrice;
+  part.vendor = newVendor;
+  spareLedger.unshift(entry);
   logAudit(req, 'spares.stock_in', { partId: part.id, name: part.name, quantity, balanceAfter: part.currentStock });
   res.json({ success: true, part, entry });
 });
 
-app.post('/api/spares/:id/issue', auth, requireRole('Fleet Manager'), (req, res) => {
+app.post('/api/spares/:id/issue', auth, requireRole('Fleet Manager'), async (req, res) => {
   const part = spareParts.find(p => p.id === req.params.id);
   if (!part) return res.status(404).json({ error: 'Spare part not found' });
   const quantity = Number(req.body.quantity);
@@ -1380,13 +1515,24 @@ app.post('/api/spares/:id/issue', auth, requireRole('Fleet Manager'), (req, res)
   const vehicle = vehicles.find(v => v.id === req.body.vehicleId);
   if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
   const { reference, notes } = req.body;
-  part.currentStock -= quantity;
-  const entry = addSpareLedgerEntry(req, {
+  const newStock = part.currentStock - quantity;
+  const entry = buildSpareLedgerEntry(req, {
     partId: part.id, partName: part.name, type: 'OUT', quantity,
     date: new Date().toISOString().split('T')[0], vehicleId: vehicle.id, regNumber: vehicle.regNumber,
     reference: reference || '', vendor: null, unitPrice: part.unitPrice,
-    notes: notes || '', balanceAfter: part.currentStock,
+    notes: notes || '', balanceAfter: newStock,
   });
+  try {
+    await prisma.$transaction([
+      prisma.sparePart.update({ where: { id: part.id }, data: { currentStock: newStock } }),
+      prisma.spareLedgerEntry.create({ data: entry }),
+    ]);
+  } catch (e) {
+    console.error('Failed to persist issue:', e.message);
+    return res.status(500).json({ error: 'Failed to record issue. Please try again.' });
+  }
+  part.currentStock = newStock;
+  spareLedger.unshift(entry);
   logAudit(req, 'spares.issue', { partId: part.id, name: part.name, quantity, vehicleId: vehicle.id, regNumber: vehicle.regNumber, balanceAfter: part.currentStock });
   res.json({ success: true, part, entry });
 });
