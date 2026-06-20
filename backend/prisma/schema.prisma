@@ -213,3 +213,15 @@ model Consignment {
   createdBy            String
   createdAt            DateTime @default(now())
 }
+
+model AuditLogEntry {
+  id        String   @id @default(cuid())
+  timestamp DateTime
+  userId    String
+  userName  String
+  role      String
+  action    String
+  details   Json
+
+  @@index([timestamp])
+}

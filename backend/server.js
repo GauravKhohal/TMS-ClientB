@@ -14,9 +14,9 @@ const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 
-// Persistent store for users/vehicles/drivers/trips. Other modules (fuel, maintenance,
-// compliance, alerts, costing, toll, chat...) remain in-memory mock data for now —
-// migrate incrementally as each one needs to survive a restart.
+// Persistent store for users/vehicles/drivers/trips/audit log. Other modules (fuel,
+// maintenance, compliance, alerts, costing, toll, chat...) remain in-memory mock data
+// for now — migrate incrementally as each one needs to survive a restart.
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 // Fields that exist on the mock vehicle/driver records but not yet as Postgres
@@ -64,6 +64,26 @@ async function loadFromDatabase() {
     catch (e) { console.error('Admin seed failed:', e.message); }
     console.log('First boot: seeded default admin user (admin@tms.in)');
   }
+
+  // One-time backfill: if the audit log table is still empty and a legacy JSON file
+  // happens to exist on this container, import it so existing history isn't lost on
+  // the cutover to Postgres. Safe to ship permanently — it's a no-op once the table
+  // has any rows, and harmless if the legacy file was never present.
+  try {
+    const auditCount = await prisma.auditLogEntry.count();
+    if (auditCount === 0 && fs.existsSync(AUDIT_FILE)) {
+      const legacy = JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf8'));
+      if (Array.isArray(legacy) && legacy.length > 0) {
+        await prisma.auditLogEntry.createMany({
+          data: legacy.map(e => ({
+            timestamp: new Date(e.timestamp), userId: e.userId, userName: e.userName,
+            role: e.role, action: e.action, details: e.details ?? {},
+          })),
+        });
+        console.log(`Backfilled ${legacy.length} audit log entries from legacy JSON file`);
+      }
+    }
+  } catch (e) { console.error('Audit log backfill failed:', e.message); }
 
   console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records, ${consignments.length} consignments`);
 }
@@ -125,24 +145,23 @@ const loginHistory = []; // { id, userId, userName, role, email, timestamp, ip }
 const pageVisits   = {}; // { userId: { '/fleet': 4, '/dashboard': 9, ... } }
 const MAX_LOGIN_HISTORY = 500;
 
-// Append-only audit trail for sensitive actions — who changed what, and when
-const AUDIT_FILE = path.join(__dirname, 'data', 'auditLog.json');
+// Append-only audit trail for sensitive actions — who changed what, and when.
+// Persisted to Postgres (not a local file) so it survives container restarts/redeploys.
+const AUDIT_FILE = path.join(__dirname, 'data', 'auditLog.json'); // legacy file, read once for backfill only
 const MAX_AUDIT_ENTRIES = 5000;
 
 function logAudit(req, action, details) {
   const entry = {
-    timestamp: new Date().toISOString(),
+    timestamp: new Date(),
     userId: req.user.id,
     userName: req.user.name,
     role: req.user.role,
     action,
     details,
   };
-  try {
-    const existing = fs.existsSync(AUDIT_FILE) ? JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf8')) : [];
-    existing.push(entry);
-    fs.writeFileSync(AUDIT_FILE, JSON.stringify(existing.slice(-MAX_AUDIT_ENTRIES), null, 2));
-  } catch (e) { console.error('Audit log write failed:', e.message); }
+  // Fire-and-forget, consistent with the persistence pattern used elsewhere in this
+  // file — logging a failure here must never block or fail the request it's attached to.
+  prisma.auditLogEntry.create({ data: entry }).catch(e => console.error('Audit log write failed:', e.message));
 }
 
 // ── WhatsApp trip-approval notification (Meta WhatsApp Cloud API) ───────────
@@ -847,11 +866,12 @@ app.get('/api/activity', auth, requireRole(), (req, res) => {
 });
 
 // Audit log — who changed what, and when (Super Admin only)
-app.get('/api/audit-log', auth, requireRole(), (req, res) => {
+app.get('/api/audit-log', auth, requireRole(), async (req, res) => {
   try {
-    const log = fs.existsSync(AUDIT_FILE) ? JSON.parse(fs.readFileSync(AUDIT_FILE, 'utf8')) : [];
-    res.json(log.slice().reverse());
-  } catch {
+    const log = await prisma.auditLogEntry.findMany({ orderBy: { timestamp: 'desc' }, take: MAX_AUDIT_ENTRIES });
+    res.json(log);
+  } catch (e) {
+    console.error('Audit log read failed:', e.message);
     res.json([]);
   }
 });
