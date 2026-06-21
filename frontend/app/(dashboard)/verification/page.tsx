@@ -91,7 +91,19 @@ export default function VerificationPage() {
 
   useEffect(() => {
     Promise.all([api.fleet(), api.drivers(), api.verificationLog()])
-      .then(([v, d, l]) => { setVehicles(v); setDrivers(d); setLog(l); })
+      .then(([v, d, l]: [Vehicle[], Driver[], LogEntry[]]) => {
+        // Defensive: normalize in case any vehicle/driver is missing these
+        // fields (e.g. a backend path that hasn't set them yet) so the page
+        // can't crash reading `.status` off `undefined`.
+        const fallback = (source: string): VerificationResult => ({ status: 'Not Verified', lastChecked: null, refId: null, source, details: null });
+        setVehicles(v.map(x => ({ ...x, rcVerification: x.rcVerification ?? fallback('Parivahan (VAHAN)') })));
+        setDrivers(d.map(x => ({
+          ...x,
+          dlVerification: x.dlVerification ?? fallback('Parivahan (Sarathi)'),
+          panVerification: x.panVerification ?? fallback('NSDL e-Gov'),
+        })));
+        setLog(l);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

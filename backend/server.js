@@ -55,8 +55,19 @@ async function loadFromDatabase() {
   ]);
   // DB is always authoritative — no fallback to mock data
   users.splice(0, users.length, ...dbUsers);
-  vehicles.splice(0, vehicles.length, ...dbVehicles.map(({ driverId, ...v }) => ({ ...v, driver: driverId })));
-  drivers.splice(0, drivers.length, ...dbDrivers);
+  // rcVerification/dlVerification/panVerification aren't Postgres columns (see
+  // VEHICLE_MOCK_ONLY_FIELDS/DRIVER_MOCK_ONLY_FIELDS), so they're always absent
+  // on a fresh DB load — default them so the Verification page doesn't crash
+  // reading `.status` off `undefined` for any vehicle/driver not yet checked.
+  const defaultVerification = (source) => ({ status: 'Not Verified', lastChecked: null, refId: null, source, details: null });
+  vehicles.splice(0, vehicles.length, ...dbVehicles.map(({ driverId, ...v }) => ({
+    ...v, driver: driverId, rcVerification: v.rcVerification ?? defaultVerification('Parivahan (VAHAN)'),
+  })));
+  drivers.splice(0, drivers.length, ...dbDrivers.map(d => ({
+    ...d,
+    dlVerification: d.dlVerification ?? defaultVerification('Parivahan (Sarathi)'),
+    panVerification: d.panVerification ?? defaultVerification('NSDL e-Gov'),
+  })));
   trips.splice(0, trips.length, ...dbTrips);
   fuelEntries.splice(0, fuelEntries.length, ...dbFuelEntries);
   maintenanceRecords.splice(0, maintenanceRecords.length, ...dbMaintenanceRecords);
@@ -823,6 +834,18 @@ app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (r
   }
   fuelEntries.unshift(newEntry);
   logAudit(req, 'fuel.add', { entryId: newEntry.id, vehicleId, liters, totalCost: newEntry.totalCost });
+
+  // Keep the vehicle's odometer current from fill-up readings — best-effort,
+  // since the fuel entry itself (the primary record here) already succeeded.
+  // Only moves forward, so backfilling an older/historical entry can't undo it.
+  const vehicle = vehicles.find(v => v.id === vehicleId);
+  if (vehicle && odometer > (vehicle.odometer || 0)) {
+    try {
+      await prisma.vehicle.update({ where: { id: vehicleId }, data: { odometer } });
+      vehicle.odometer = odometer;
+    } catch (e) { console.error('Failed to sync vehicle odometer:', e.message); }
+  }
+
   res.json(newEntry);
 });
 
@@ -851,6 +874,17 @@ app.post('/api/maintenance', auth, requireRole('Fleet Manager', 'Dispatcher'), a
   }
   maintenanceRecords.unshift(newRecord);
   logAudit(req, 'maintenance.add', { recordId: newRecord.id, vehicleId, type, cost: newRecord.cost });
+
+  // Keep the vehicle's last-service date current — best-effort, since the
+  // maintenance record itself (the primary record here) already succeeded.
+  const vehicle = vehicles.find(v => v.id === vehicleId);
+  if (vehicle && date > (vehicle.lastService || '')) {
+    try {
+      await prisma.vehicle.update({ where: { id: vehicleId }, data: { lastService: date } });
+      vehicle.lastService = date;
+    } catch (e) { console.error('Failed to sync vehicle last service date:', e.message); }
+  }
+
   res.json(newRecord);
 });
 
