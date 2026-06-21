@@ -405,8 +405,8 @@ app.get('/api/dashboard', auth, (req, res) => {
     approved: trips.filter(t => t.approvalStatus === 'Approved').length,
     rejected: trips.filter(t => t.approvalStatus === 'Rejected').length,
   };
-  const { fleetStatus, monthlyRevenue } = computeFleetAnalytics();
-  res.json({ totalVehicles: vehicles.length, activeVehicles, activeTrips, totalRevenue, totalDrivers: drivers.length, unreadAlerts, fleetStatus, monthlyRevenue, indentStats });
+  const { fleetStatus, monthlyRevenue, vehicleUtilization } = computeFleetAnalytics();
+  res.json({ totalVehicles: vehicles.length, activeVehicles, activeTrips, totalRevenue, totalDrivers: drivers.length, unreadAlerts, fleetStatus, monthlyRevenue, vehicleUtilization, indentStats });
 });
 
 // Fleet

@@ -17,6 +17,7 @@ interface DashboardData {
   unreadAlerts: number;
   fleetStatus: { running: number; idle: number; maintenance: number; breakdown: number };
   monthlyRevenue: { ym: string; month: string; revenue: number; cost: number; trips: number }[];
+  vehicleUtilization: { name: string; utilization: number }[];
   indentStats: { total: number; pending: number; approved: number; rejected: number };
 }
 
@@ -40,15 +41,7 @@ function StatCard({ title, value, sub, icon, color }: { title: string; value: st
 }
 
 const PIE_COLORS = ['#22c55e', '#f59e0b', '#3b82f6', '#ef4444'];
-
-const UTILIZATION = [
-  { label: 'V001 — MH-12-AB-1234', pct: 78, color: 'bg-green-500' },
-  { label: 'V003 — GJ-01-EF-9012', pct: 88, color: 'bg-blue-500' },
-  { label: 'V005 — KA-09-IJ-7890', pct: 92, color: 'bg-violet-500' },
-  { label: 'V007 — RJ-14-MN-6789', pct: 74, color: 'bg-orange-500' },
-  { label: 'V006 — TN-01-KL-2345', pct: 61, color: 'bg-yellow-500' },
-  { label: 'V002 — MH-12-CD-5678', pct: 54, color: 'bg-slate-400' },
-];
+const UTILIZATION_COLORS = ['bg-green-500', 'bg-blue-500', 'bg-violet-500', 'bg-orange-500', 'bg-yellow-500', 'bg-slate-400'];
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -220,19 +213,23 @@ export default function DashboardPage() {
             {/* Fleet Utilization */}
             <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
               <h3 className="text-sm font-semibold text-slate-800 mb-4">Fleet Utilization</h3>
-              <div className="space-y-3">
-                {UTILIZATION.map(item => (
-                  <div key={item.label}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-600">{item.label}</span>
-                      <span className="font-medium text-slate-800">{item.pct}%</span>
+              {data.vehicleUtilization.length === 0 ? (
+                <div className="text-xs text-slate-400 text-center py-6">No vehicles yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {data.vehicleUtilization.map((item, i) => (
+                    <div key={item.name}>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-slate-600">{item.name}</span>
+                        <span className="font-medium text-slate-800">{item.utilization}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-100 rounded-full">
+                        <div className={`h-1.5 rounded-full ${UTILIZATION_COLORS[i % UTILIZATION_COLORS.length]}`} style={{ width: `${item.utilization}%` }} />
+                      </div>
                     </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full">
-                      <div className={`h-1.5 rounded-full ${item.color}`} style={{ width: `${item.pct}%` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </>
