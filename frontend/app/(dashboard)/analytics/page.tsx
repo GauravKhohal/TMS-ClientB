@@ -5,11 +5,13 @@ import {
   CartesianGrid, LineChart, Line, Legend,
 } from 'recharts';
 import { api } from '@/lib/api';
+import { DateRangeBar } from '@/components/DateRangeBar';
+import { useDateRange, fmtYM } from '@/lib/useDateRange';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Analytics {
-  monthlyRevenue: { month: string; revenue: number; cost: number; trips: number }[];
-  fuelTrend: { month: string; totalLiters: number; avgKmpl: number; cost: number }[];
+  monthlyRevenue: { ym: string; month: string; revenue: number; cost: number; trips: number }[];
+  fuelTrend: { ym: string; month: string; totalLiters: number; avgKmpl: number; cost: number }[];
   vehicleUtilization: { name: string; utilization: number }[];
   topDrivers: { name: string; score: number; trips: number }[];
 }
@@ -63,29 +65,6 @@ const STATUS_COLORS: Record<string, string> = {
   'Pending Approval': 'bg-yellow-100 text-yellow-700',
 };
 
-// Fleet-level analytics months map to real YYYY-MM values
-const MONTH_YYYYMM: Record<string, string> = {
-  Jan: '2026-01', Feb: '2026-02', Mar: '2026-03',
-  Apr: '2026-04', May: '2026-05', Jun: '2026-06',
-  Jul: '2025-07', Aug: '2025-08', Sep: '2025-09',
-  Oct: '2025-10', Nov: '2025-11', Dec: '2025-12',
-};
-
-type Preset = '1m' | '3m' | '6m' | 'custom';
-
-// Returns YYYY-MM n months before baseYM
-function subtractMonths(baseYM: string, n: number): string {
-  const [y, m] = baseYM.split('-').map(Number);
-  const d = new Date(y, m - 1 - n, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function fmtYM(ym: string) {
-  const [y, m] = ym.split('-');
-  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${names[parseInt(m) - 1]} ${y}`;
-}
-
 function KCard({ label, value, sub, color = 'text-slate-800', bg = '' }:
   { label: string; value: string | number; sub?: string; color?: string; bg?: string }) {
   return (
@@ -93,63 +72,6 @@ function KCard({ label, value, sub, color = 'text-slate-800', bg = '' }:
       <div className={`text-xl font-bold ${color}`}>{value}</div>
       <div className="text-xs text-slate-500 mt-0.5">{label}</div>
       {sub && <div className="text-xs text-slate-400 mt-0.5">{sub}</div>}
-    </div>
-  );
-}
-
-// ── Date Range Bar ──────────────────────────────────────────────────────────
-const TODAY_YM = '2026-05'; // last month with full data in mock dataset
-
-function DateRangeBar({
-  preset, setPreset, fromYM, setFromYM, toYM, setToYM,
-}: {
-  preset: Preset; setPreset: (p: Preset) => void;
-  fromYM: string; setFromYM: (v: string) => void;
-  toYM: string; setToYM: (v: string) => void;
-}) {
-  const presets: { key: Preset; label: string }[] = [
-    { key: '1m', label: 'Last 1 Month' },
-    { key: '3m', label: 'Last 3 Months' },
-    { key: '6m', label: 'Last 6 Months' },
-    { key: 'custom', label: 'Custom Range' },
-  ];
-
-  const effectiveFrom = preset === 'custom' ? fromYM : subtractMonths(TODAY_YM, preset === '1m' ? 0 : preset === '3m' ? 2 : 5);
-  const effectiveTo   = preset === 'custom' ? toYM : TODAY_YM;
-
-  return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm px-4 py-3 flex items-center gap-4 flex-wrap">
-      <span className="text-xs font-semibold text-slate-500 flex-shrink-0">Time Period</span>
-      <div className="flex gap-1.5 flex-wrap">
-        {presets.map(p => (
-          <button key={p.key} onClick={() => setPreset(p.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${preset === p.key ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      {preset === 'custom' && (
-        <div className="flex items-center gap-2 ml-2">
-          <span className="text-xs text-slate-500">From</span>
-          <input type="month" value={fromYM} onChange={e => setFromYM(e.target.value)}
-            max={toYM}
-            className="px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
-          <span className="text-xs text-slate-400">to</span>
-          <input type="month" value={toYM} onChange={e => setToYM(e.target.value)}
-            min={fromYM} max={TODAY_YM}
-            className="px-2 py-1 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
-        </div>
-      )}
-
-      <div className="ml-auto flex items-center gap-1.5 text-xs text-slate-500 flex-shrink-0">
-        <svg className="w-3.5 h-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-        <span className="font-medium text-slate-700">{fmtYM(effectiveFrom)}</span>
-        <span>–</span>
-        <span className="font-medium text-slate-700">{fmtYM(effectiveTo)}</span>
-      </div>
     </div>
   );
 }
@@ -171,9 +93,7 @@ export default function AnalyticsPage() {
   const [selectedCustomer, setSelectedCustomer]   = useState('');
 
   // Date range
-  const [preset, setPreset]   = useState<Preset>('6m');
-  const [fromYM, setFromYM]   = useState('2025-12');
-  const [toYM, setToYM]       = useState('2026-05');
+  const { preset, setPreset, fromYM, setFromYM, toYM, setToYM, effectiveFrom, effectiveTo, inRange } = useDateRange();
 
   // Schedule report modal
   const [showSchedule, setShowSchedule]   = useState(false);
@@ -199,25 +119,13 @@ export default function AnalyticsPage() {
   }, []);
 
   // ── Effective date range ────────────────────────────────────────────────
-  const effectiveFrom = useMemo(() =>
-    preset === 'custom' ? fromYM : subtractMonths(TODAY_YM, preset === '1m' ? 0 : preset === '3m' ? 2 : 5),
-    [preset, fromYM]);
-  const effectiveTo = useMemo(() =>
-    preset === 'custom' ? toYM : TODAY_YM,
-    [preset, toYM]);
-
-  function inRange(dateStr: string) {
-    const ym = dateStr.slice(0, 7);
+  function monthInRange(ym: string) {
     return ym >= effectiveFrom && ym <= effectiveTo;
-  }
-  function monthInRange(monthName: string) {
-    const ym = MONTH_YYYYMM[monthName];
-    return ym ? ym >= effectiveFrom && ym <= effectiveTo : false;
   }
 
   // ── Fleet tab filtered data ─────────────────────────────────────────────
-  const filteredMonthly = analytics?.monthlyRevenue.filter(m => monthInRange(m.month)) ?? [];
-  const filteredFuelTrend = analytics?.fuelTrend.filter(m => monthInRange(m.month)) ?? [];
+  const filteredMonthly = analytics?.monthlyRevenue.filter(m => monthInRange(m.ym)) ?? [];
+  const filteredFuelTrend = analytics?.fuelTrend.filter(m => monthInRange(m.ym)) ?? [];
   const profitData = filteredMonthly.map(m => ({
     month: m.month,
     Profit: m.revenue - m.cost,
@@ -386,6 +294,7 @@ export default function AnalyticsPage() {
         preset={preset} setPreset={setPreset}
         fromYM={fromYM} setFromYM={setFromYM}
         toYM={toYM} setToYM={setToYM}
+        effectiveFrom={effectiveFrom} effectiveTo={effectiveTo}
       />
 
       {/* ═══════════════════════ FLEET TAB ═══════════════════════ */}

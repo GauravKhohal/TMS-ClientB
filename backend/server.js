@@ -9,7 +9,7 @@ const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, analytics, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments } = require('./data/mockData');
+const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments } = require('./data/mockData');
 const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
@@ -321,6 +321,78 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 });
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// Computes real fleet-wide analytics (revenue/cost trend, fuel trend, vehicle
+// utilization, top drivers, fleet status) from live trips/fuel/maintenance/
+// vehicle/driver data — replaces the old static, permanently-empty mock object.
+// `ym` (YYYY-MM) is included on each month entry so the frontend can filter by
+// date range without guessing which year a short month name belongs to.
+function computeFleetAnalytics() {
+  const monthMap = {};
+  function monthEntry(ym) {
+    if (!monthMap[ym]) monthMap[ym] = { revenue: 0, cost: 0, trips: 0 };
+    return monthMap[ym];
+  }
+  trips.forEach(t => {
+    const dateStr = t.actualDeparture || t.plannedDate;
+    if (!dateStr) return;
+    const m = monthEntry(dateStr.slice(0, 7));
+    m.revenue += t.revenue || t.freight || 0;
+    m.cost += t.tollCost || 0;
+    m.trips += 1;
+  });
+  fuelEntries.forEach(f => { if (f.date) monthEntry(f.date.slice(0, 7)).cost += f.totalCost || 0; });
+  maintenanceRecords.forEach(m => { if (m.date) monthEntry(m.date.slice(0, 7)).cost += m.cost || 0; });
+  const monthlyRevenue = Object.entries(monthMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([ym, v]) => ({
+      ym, month: `${MONTH_NAMES[parseInt(ym.slice(5, 7), 10) - 1]} ${ym.slice(0, 4)}`,
+      revenue: Math.round(v.revenue), cost: Math.round(v.cost), trips: v.trips,
+    }));
+
+  const fuelMap = {};
+  fuelEntries.forEach(f => {
+    if (!f.date) return;
+    const ym = f.date.slice(0, 7);
+    if (!fuelMap[ym]) fuelMap[ym] = { totalLiters: 0, kmplSum: 0, kmplCount: 0, cost: 0 };
+    fuelMap[ym].totalLiters += f.liters || 0;
+    if (f.kmpl) { fuelMap[ym].kmplSum += f.kmpl; fuelMap[ym].kmplCount += 1; }
+    fuelMap[ym].cost += f.totalCost || 0;
+  });
+  const fuelTrend = Object.entries(fuelMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([ym, v]) => ({
+      ym, month: `${MONTH_NAMES[parseInt(ym.slice(5, 7), 10) - 1]} ${ym.slice(0, 4)}`,
+      totalLiters: Math.round(v.totalLiters),
+      avgKmpl: v.kmplCount ? Math.round((v.kmplSum / v.kmplCount) * 10) / 10 : 0,
+      cost: Math.round(v.cost),
+    }));
+
+  // Utilization is a rough proxy until real hours-of-service/GPS tracking
+  // exists: ~6 trips/month is treated as "fully utilized" for a long-haul truck.
+  const monthsActive = Math.max(1, monthlyRevenue.length);
+  const vehicleUtilization = vehicles.map(v => {
+    const tripCount = trips.filter(t => t.vehicleId === v.id).length;
+    return { name: v.regNumber, utilization: Math.min(100, Math.round((tripCount / (monthsActive * 6)) * 100)) };
+  }).sort((a, b) => b.utilization - a.utilization).slice(0, 10);
+
+  const topDrivers = drivers.map(d => {
+    const driverTrips = trips.filter(t => t.driverId === d.id);
+    const completed = driverTrips.filter(t => t.status === 'Completed').length;
+    return { name: d.name, score: driverTrips.length ? Math.round((completed / driverTrips.length) * 100) : 0, trips: driverTrips.length };
+  }).filter(d => d.trips > 0).sort((a, b) => b.score - a.score).slice(0, 5);
+
+  const fleetStatus = {
+    running: vehicles.filter(v => v.status === 'Running').length,
+    idle: vehicles.filter(v => v.status === 'Idle').length,
+    maintenance: vehicles.filter(v => v.status === 'Maintenance').length,
+    breakdown: vehicles.filter(v => v.status === 'Breakdown').length,
+  };
+
+  return { monthlyRevenue, fuelTrend, vehicleUtilization, topDrivers, fleetStatus };
+}
+
 // Dashboard summary
 app.get('/api/dashboard', auth, (req, res) => {
   const activeTrips = trips.filter(t => t.status === 'In Transit').length;
@@ -333,7 +405,8 @@ app.get('/api/dashboard', auth, (req, res) => {
     approved: trips.filter(t => t.approvalStatus === 'Approved').length,
     rejected: trips.filter(t => t.approvalStatus === 'Rejected').length,
   };
-  res.json({ totalVehicles: vehicles.length, activeVehicles, activeTrips, totalRevenue, totalDrivers: drivers.length, unreadAlerts, fleetStatus: analytics.fleetStatus, monthlyRevenue: analytics.monthlyRevenue, indentStats });
+  const { fleetStatus, monthlyRevenue } = computeFleetAnalytics();
+  res.json({ totalVehicles: vehicles.length, activeVehicles, activeTrips, totalRevenue, totalDrivers: drivers.length, unreadAlerts, fleetStatus, monthlyRevenue, indentStats });
 });
 
 // Fleet
@@ -1019,7 +1092,7 @@ app.get('/api/costing', auth, (req, res) => {
 });
 
 // Analytics
-app.get('/api/analytics', auth, (req, res) => res.json(analytics));
+app.get('/api/analytics', auth, (req, res) => res.json(computeFleetAnalytics()));
 
 // Users
 app.get('/api/users', auth, (req, res) => res.json(users.map(({ password, ...u }) => u)));

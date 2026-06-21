@@ -2,7 +2,10 @@ import { useState, useMemo } from 'react';
 
 export type Preset = '1m' | '3m' | '6m' | 'custom';
 
-export const TODAY_YM = '2026-05'; // last month with full data in mock dataset
+// Computed at module load (page refresh), not hardcoded — a fixed string here
+// previously caused every date-filtered page to silently exclude all data from
+// after that month, no matter how much real data existed.
+export const TODAY_YM = new Date().toISOString().slice(0, 7);
 
 export function subtractMonths(baseYM: string, n: number): string {
   const [y, m] = baseYM.split('-').map(Number);
@@ -24,8 +27,8 @@ export function lastDayOfMonth(ym: string): string {
 
 export function useDateRange() {
   const [preset, setPreset]   = useState<Preset>('6m');
-  const [fromYM, setFromYM]   = useState('2025-12');
-  const [toYM, setToYM]       = useState('2026-05');
+  const [fromYM, setFromYM]   = useState(() => subtractMonths(TODAY_YM, 5));
+  const [toYM, setToYM]       = useState(TODAY_YM);
 
   const effectiveFrom = useMemo(() =>
     preset === 'custom' ? fromYM

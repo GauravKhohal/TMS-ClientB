@@ -8,13 +8,6 @@ import { api } from '@/lib/api';
 import { DateRangeBar } from '@/components/DateRangeBar';
 import { useDateRange } from '@/lib/useDateRange';
 
-const MONTH_YYYYMM: Record<string, string> = {
-  Jan: '2026-01', Feb: '2026-02', Mar: '2026-03',
-  Apr: '2026-04', May: '2026-05', Jun: '2026-06',
-  Jul: '2025-07', Aug: '2025-08', Sep: '2025-09',
-  Oct: '2025-10', Nov: '2025-11', Dec: '2025-12',
-};
-
 interface DashboardData {
   totalVehicles: number;
   activeVehicles: number;
@@ -23,7 +16,7 @@ interface DashboardData {
   totalDrivers: number;
   unreadAlerts: number;
   fleetStatus: { running: number; idle: number; maintenance: number; breakdown: number };
-  monthlyRevenue: { month: string; revenue: number; cost: number; trips: number }[];
+  monthlyRevenue: { ym: string; month: string; revenue: number; cost: number; trips: number }[];
   indentStats: { total: number; pending: number; approved: number; rejected: number };
 }
 
@@ -92,10 +85,7 @@ export default function DashboardPage() {
     { name: 'Breakdown', value: data.fleetStatus.breakdown },
   ];
 
-  const filteredMonthly = data.monthlyRevenue.filter(m => {
-    const ym = MONTH_YYYYMM[m.month];
-    return ym ? ym >= effectiveFrom && ym <= effectiveTo : false;
-  });
+  const filteredMonthly = data.monthlyRevenue.filter(m => m.ym >= effectiveFrom && m.ym <= effectiveTo);
 
   return (
     <div className="space-y-6">
