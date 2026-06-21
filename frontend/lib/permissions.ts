@@ -18,7 +18,6 @@ export const PAGE_ROLES: Record<string, string[]> = {
   '/petty-cash':  ['Super Admin', 'Dispatcher', 'Accountant', 'Viewer'],
   '/analytics':   ['Super Admin', 'Fleet Manager', 'Accountant', 'Viewer'],
   '/alerts':      ['Super Admin', 'Fleet Manager', 'Dispatcher', 'Viewer'],
-  '/chat':        ['Super Admin', 'Fleet Manager', 'Dispatcher', 'Accountant', 'Viewer'],
   '/users':       ['Super Admin'],
   '/audit-log':   ['Super Admin'],
 };

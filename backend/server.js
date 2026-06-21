@@ -1,7 +1,5 @@
 require('dotenv').config();
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -179,7 +177,6 @@ function tripDbFields(t) {
 }
 
 const app = express();
-const server = http.createServer(app);
 const PORT = process.env.PORT || 5001;
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET env var is required — refusing to start with a guessable default.');
@@ -1696,138 +1693,8 @@ app.post('/api/spares/:id/issue', auth, requireRole('Fleet Manager'), async (req
   res.json({ success: true, part, entry });
 });
 
-// ── CHAT (Socket.io) ────────────────────────────────────────────────────────
-
-const CHAT_FILE = path.join(__dirname, 'data', 'chatMessages.json');
-const MAX_PER_CHANNEL = 300;
-
-// Load persisted messages
-function loadMessages() {
-  try { if (fs.existsSync(CHAT_FILE)) return JSON.parse(fs.readFileSync(CHAT_FILE, 'utf8')); }
-  catch(e) {}
-  return {};
-}
-function saveMessages() {
-  try { fs.writeFileSync(CHAT_FILE, JSON.stringify(chatMessages, null, 2)); }
-  catch(e) {}
-}
-
-let chatMessages = loadMessages();
-
-const CHANNELS = [
-  { id: 'general',     name: 'General',       icon: '💬', description: 'Company-wide announcements' },
-  { id: 'fleet',       name: 'Vehicle Management', icon: '🚛', description: 'Vehicle and GPS updates' },
-  { id: 'accounts',    name: 'Accounts',       icon: '💰', description: 'Finance and billing' },
-  { id: 'drivers',     name: 'Drivers',        icon: '👤', description: 'Driver management' },
-  { id: 'maintenance', name: 'Maintenance',    icon: '🔧', description: 'Workshop and repairs' },
-  { id: 'compliance',  name: 'Compliance',     icon: '📋', description: 'Documents and compliance' },
-];
-
-// Seed a few messages so chat doesn't look empty on first open
-function seedIfEmpty(channelId, msgs) {
-  if (!chatMessages[channelId] || chatMessages[channelId].length === 0) {
-    chatMessages[channelId] = msgs;
-    saveMessages();
-  }
-}
-seedIfEmpty('general', [
-  { id: 'seed-g1', channelId: 'general', userId: 'U001', userName: 'Admin User', role: 'Super Admin', text: 'Welcome to TransportMS Chat! Use channels to communicate with your team.', timestamp: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'seed-g2', channelId: 'general', userId: 'U002', userName: 'Priya Mehta', role: 'Fleet Manager', text: 'Thanks! This will make coordination much easier.', timestamp: new Date(Date.now() - 82800000).toISOString() },
-]);
-seedIfEmpty('fleet', [
-  { id: 'seed-f1', channelId: 'fleet', userId: 'U002', userName: 'Priya Mehta', role: 'Fleet Manager', text: 'V004 (DL-01-GH-3456) is under maintenance. ETA for completion is tomorrow.', timestamp: new Date(Date.now() - 7200000).toISOString() },
-  { id: 'seed-f2', channelId: 'fleet', userId: 'U001', userName: 'Admin User', role: 'Super Admin', text: 'Noted. Ensure fitness certificate is renewed before putting back on road.', timestamp: new Date(Date.now() - 7000000).toISOString() },
-]);
-seedIfEmpty('accounts', [
-  { id: 'seed-a1', channelId: 'accounts', userId: 'U004', userName: 'Nisha Patel', role: 'Accountant', text: 'Petty cash reconciliation for May is pending from 3 drivers. Please follow up.', timestamp: new Date(Date.now() - 3600000).toISOString() },
-]);
-
-const io = new Server(server, {
-  cors: { origin: allowedOrigins, credentials: true }
-});
-
-const onlineUsers = new Map(); // socketId → { userId, userName, role }
-
-io.on('connection', (socket) => {
-  // User identifies themselves
-  socket.on('identify', ({ userId, userName, role }) => {
-    onlineUsers.set(socket.id, { userId, userName, role });
-    io.emit('users_online', Array.from(onlineUsers.values()));
-  });
-
-  // Get channel list + trip channels
-  socket.on('get_channels', () => {
-    const tripChannels = trips.slice(0, 10).map(t => ({
-      id: `trip-${t.id}`,
-      name: `${t.id}: ${t.origin}→${t.destination}`,
-      icon: '🗺️',
-      description: `${t.customer} · ${t.status}`,
-      tripId: t.id,
-    }));
-    socket.emit('channels', { channels: CHANNELS, tripChannels });
-  });
-
-  // Get message history for a channel
-  socket.on('get_history', ({ channelId }) => {
-    socket.join(channelId);
-    socket.emit('history', { channelId, messages: chatMessages[channelId] || [] });
-  });
-
-  // Send message to a channel
-  socket.on('send_message', ({ channelId, userId, userName, role, text }) => {
-    if (!text || !text.trim()) return;
-    const msg = {
-      id: `m-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-      channelId, userId, userName, role,
-      text: text.trim(),
-      timestamp: new Date().toISOString(),
-    };
-    if (!chatMessages[channelId]) chatMessages[channelId] = [];
-    chatMessages[channelId].push(msg);
-    if (chatMessages[channelId].length > MAX_PER_CHANNEL) {
-      chatMessages[channelId] = chatMessages[channelId].slice(-MAX_PER_CHANNEL);
-    }
-    saveMessages();
-    io.to(channelId).emit('new_message', msg);
-  });
-
-  // Direct message
-  socket.on('send_dm', ({ fromId, fromName, fromRole, toId, text }) => {
-    if (!text || !text.trim()) return;
-    const dmKey = [fromId, toId].sort().join('-');
-    const msg = {
-      id: `dm-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-      channelId: dmKey, userId: fromId, userName: fromName, role: fromRole,
-      text: text.trim(), timestamp: new Date().toISOString(), isDM: true,
-    };
-    if (!chatMessages[dmKey]) chatMessages[dmKey] = [];
-    chatMessages[dmKey].push(msg);
-    if (chatMessages[dmKey].length > MAX_PER_CHANNEL) {
-      chatMessages[dmKey] = chatMessages[dmKey].slice(-MAX_PER_CHANNEL);
-    }
-    saveMessages();
-    // Emit to both sender and receiver sockets
-    const allSockets = Array.from(io.sockets.sockets.values());
-    allSockets.forEach(s => {
-      const u = onlineUsers.get(s.id);
-      if (u && (u.userId === fromId || u.userId === toId)) s.emit('new_message', msg);
-    });
-  });
-
-  // Get DM history
-  socket.on('get_dm_history', ({ fromId, toId }) => {
-    const dmKey = [fromId, toId].sort().join('-');
-    socket.emit('history', { channelId: dmKey, messages: chatMessages[dmKey] || [] });
-  });
-
-  socket.on('disconnect', () => {
-    onlineUsers.delete(socket.id);
-    io.emit('users_online', Array.from(onlineUsers.values()));
-  });
-});
-
 loadFromDatabase()
   .catch(e => console.error('Failed to load data from database, falling back to mock data:', e.message))
   .finally(() => {
-    server.listen(PORT, () => console.log(`TMS Backend running on http://localhost:${PORT}`));
+    app.listen(PORT, () => console.log(`TMS Backend running on http://localhost:${PORT}`));
   });
