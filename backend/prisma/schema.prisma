@@ -41,6 +41,8 @@ model Vehicle {
   insurance       String
   fitness         String
   permit          String
+  rcExpiry        String @default("")
+  pollutionExpiry String @default("")
   utilization     Int
   purchasedAgency String
   vehicleValue    Int

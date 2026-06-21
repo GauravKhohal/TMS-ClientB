@@ -12,6 +12,7 @@ interface Vehicle {
   category: string; ownershipType: string; capacity: string; fuelType: string;
   status: string; driver: string | null; odometer: number; speed: number;
   utilization: number; insurance: string; fitness: string; permit: string;
+  rcExpiry: string; pollutionExpiry: string;
   lastService?: string;
   location: { lat: number; lng: number };
   purchaseDate?: string;
@@ -32,7 +33,7 @@ const MAX_FLEET_SIZE = 200;
 const EMPTY_FORM = {
   regNumber: '', make: '', model: '', year: new Date().getFullYear(),
   category: 'Heavy', ownershipType: 'Own', capacity: '', fuelType: 'Diesel',
-  insurance: '', fitness: '', permit: '', odometer: 0,
+  insurance: '', fitness: '', permit: '', rcExpiry: '', pollutionExpiry: '', odometer: 0,
   purchaseDate: '', purchasedAgency: '', vehicleValue: 0,
   emiEnabled: 'No', monthlyEMI: 0, loanBank: '',
   loanAmount: 0, loanTenureMonths: 60, loanStartDate: '',
@@ -106,7 +107,7 @@ const SELECT = "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focu
 const EXCEL_COLS = [
   'Reg Number', 'Make', 'Model', 'Year', 'Category', 'Ownership Type',
   'Capacity', 'Fuel Type', 'Odometer (km)', 'Insurance Expiry', 'Fitness Expiry',
-  'Permit Expiry', 'Purchased Agency', 'Vehicle Value (₹)', 'EMI', 'Monthly EMI (₹)', 'Bank Name',
+  'Permit Expiry', 'RC Expiry', 'Pollution Cert Expiry', 'Purchased Agency', 'Vehicle Value (₹)', 'EMI', 'Monthly EMI (₹)', 'Bank Name',
 ];
 
 function vehiclesToSheet(data: Vehicle[]) {
@@ -115,6 +116,7 @@ function vehiclesToSheet(data: Vehicle[]) {
     'Category': v.category, 'Ownership Type': v.ownershipType, 'Capacity': v.capacity,
     'Fuel Type': v.fuelType, 'Odometer (km)': v.odometer,
     'Insurance Expiry': v.insurance, 'Fitness Expiry': v.fitness, 'Permit Expiry': v.permit,
+    'RC Expiry': v.rcExpiry, 'Pollution Cert Expiry': v.pollutionExpiry,
     'Purchased Agency': v.purchasedAgency, 'Purchase Date': v.purchaseDate || '', 'Vehicle Value (₹)': v.vehicleValue,
     'EMI': v.emiEnabled, 'Monthly EMI (₹)': v.monthlyEMI, 'Bank Name': v.loanBank,
     'Status': v.status, 'Utilization (%)': v.utilization,
@@ -205,6 +207,8 @@ export default function FleetPage() {
           insurance: String(row['Insurance Expiry'] || ''),
           fitness: String(row['Fitness Expiry'] || ''),
           permit: String(row['Permit Expiry'] || ''),
+          rcExpiry: String(row['RC Expiry'] || ''),
+          pollutionExpiry: String(row['Pollution Cert Expiry'] || ''),
           purchasedAgency: String(row['Purchased Agency'] || ''),
           vehicleValue: Number(row['Vehicle Value (₹)']) || 0,
           emiEnabled: String(row['EMI'] || 'No'),
@@ -596,6 +600,12 @@ export default function FleetPage() {
                   <Field label="Permit Expiry *">
                     <input required type="date" value={form.permit} onChange={e => set('permit', e.target.value)} className={INPUT} />
                   </Field>
+                  <Field label="RC Expiry *">
+                    <input required type="date" value={form.rcExpiry} onChange={e => set('rcExpiry', e.target.value)} className={INPUT} />
+                  </Field>
+                  <Field label="Pollution Cert. Expiry *">
+                    <input required type="date" value={form.pollutionExpiry} onChange={e => set('pollutionExpiry', e.target.value)} className={INPUT} />
+                  </Field>
                 </div>
               </div>
 
@@ -633,6 +643,8 @@ export default function FleetPage() {
                 ['Insurance Expiry', selected.insurance || '—'],
                 ['Fitness Expiry', selected.fitness || '—'],
                 ['Permit Expiry', selected.permit || '—'],
+                ['RC Expiry', selected.rcExpiry || '—'],
+                ['Pollution Cert. Expiry', selected.pollutionExpiry || '—'],
                 ['Utilization', `${selected.utilization}%`],
                 ['Purchased Agency', selected.purchasedAgency || '—'],
                 ['Purchase Date', selected.purchaseDate || '—'],

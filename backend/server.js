@@ -110,13 +110,13 @@ async function loadFromDatabase() {
   } catch (e) { console.error('Audit log backfill failed:', e.message); }
 
   // Reconciliation: fill blank compliance fields from the vehicle's own
-  // insurance/fitness/permit expiry (captured at Add Vehicle time) for any
-  // vehicle whose compliance record predates this sync, or has none yet.
-  // Never overwrites a value already set via the Compliance tab. Cheap and
-  // idempotent at this fleet size — safe to run every boot.
+  // insurance/fitness/permit/rcExpiry/pollutionExpiry (captured at Add Vehicle
+  // time) for any vehicle whose compliance record predates this sync, or has
+  // none yet. Never overwrites a value already set via the Compliance tab.
+  // Cheap and idempotent at this fleet size — safe to run every boot.
   let complianceBackfilled = 0;
   for (const v of vehicles) {
-    if (!v.insurance && !v.fitness && !v.permit) continue;
+    if (!v.insurance && !v.fitness && !v.permit && !v.rcExpiry && !v.pollutionExpiry) continue;
     const existing = complianceRecords.find(c => c.vehicleId === v.id);
     const record = existing || {
       vehicleId: v.id, rc: { expiry: '' }, insurance: { expiry: '', provider: '' },
@@ -127,6 +127,8 @@ async function loadFromDatabase() {
     if (v.fitness && !record.fitness?.expiry) { record.fitness = { expiry: v.fitness }; changed = true; }
     if (v.permit && !record.statePermit?.expiry) { record.statePermit = { expiry: v.permit }; changed = true; }
     if (v.permit && !record.nationalPermit?.expiry) { record.nationalPermit = { expiry: v.permit }; changed = true; }
+    if (v.rcExpiry && !record.rc?.expiry) { record.rc = { expiry: v.rcExpiry }; changed = true; }
+    if (v.pollutionExpiry && !record.pollution?.expiry) { record.pollution = { expiry: v.pollutionExpiry }; changed = true; }
     if (!changed) continue;
     try {
       const { vehicleId, ...data } = record;
@@ -345,7 +347,7 @@ app.get('/api/fleet/:id', auth, (req, res) => {
 app.post('/api/fleet', auth, requireRole('Fleet Manager'), async (req, res) => {
   if (vehicles.length >= MAX_FLEET_SIZE) return res.status(400).json({ error: `Fleet limit of ${MAX_FLEET_SIZE} vehicles reached` });
   const { regNumber, make, model, year, category, ownershipType, capacity, fuelType,
-    insurance, fitness, permit, odometer, purchaseDate, purchasedAgency, vehicleValue,
+    insurance, fitness, permit, rcExpiry, pollutionExpiry, odometer, purchaseDate, purchasedAgency, vehicleValue,
     emiEnabled, monthlyEMI, loanBank, loanAmount, loanTenureMonths, loanStartDate } = req.body;
   if (!regNumber || !make || !model) return res.status(400).json({ error: 'Registration number, make, and model are required' });
   const newVehicle = {
@@ -354,6 +356,7 @@ app.post('/api/fleet', auth, requireRole('Fleet Manager'), async (req, res) => {
     category: category || 'Heavy', ownershipType: ownershipType || 'Own', capacity: capacity || '', fuelType: fuelType || 'Diesel',
     status: 'Idle', driver: null, odometer: Number(odometer) || 0, location: { lat: 18.52, lng: 73.85 }, speed: 0,
     lastService: '', insurance: insurance || '', fitness: fitness || '', permit: permit || '',
+    rcExpiry: rcExpiry || '', pollutionExpiry: pollutionExpiry || '',
     utilization: 0, purchasedAgency: purchasedAgency || '', vehicleValue: Number(vehicleValue) || 0,
     emiEnabled: emiEnabled || 'No', monthlyEMI: Number(monthlyEMI) || 0, loanBank: loanBank || '',
     // Mock-only fields, no Postgres column yet (see VEHICLE_MOCK_ONLY_FIELDS) —
@@ -370,7 +373,8 @@ app.post('/api/fleet', auth, requireRole('Fleet Manager'), async (req, res) => {
       capacity: newVehicle.capacity, fuelType: newVehicle.fuelType, status: newVehicle.status,
       driverId: null, odometer: newVehicle.odometer, location: newVehicle.location, speed: newVehicle.speed,
       lastService: newVehicle.lastService, insurance: newVehicle.insurance, fitness: newVehicle.fitness,
-      permit: newVehicle.permit, utilization: newVehicle.utilization, purchasedAgency: newVehicle.purchasedAgency,
+      permit: newVehicle.permit, rcExpiry: newVehicle.rcExpiry, pollutionExpiry: newVehicle.pollutionExpiry,
+      utilization: newVehicle.utilization, purchasedAgency: newVehicle.purchasedAgency,
       vehicleValue: newVehicle.vehicleValue, emiEnabled: newVehicle.emiEnabled, monthlyEMI: newVehicle.monthlyEMI,
       loanBank: newVehicle.loanBank,
     }});
@@ -384,13 +388,13 @@ app.post('/api/fleet', auth, requireRole('Fleet Manager'), async (req, res) => {
   // Seed a compliance record from the expiry dates already captured here, so the
   // Compliance tab isn't blank for fields the Fleet Manager already provided.
   // Best-effort: a failure here shouldn't fail vehicle creation, which already succeeded.
-  if (newVehicle.insurance || newVehicle.fitness || newVehicle.permit) {
+  if (newVehicle.insurance || newVehicle.fitness || newVehicle.permit || newVehicle.rcExpiry || newVehicle.pollutionExpiry) {
     const complianceSeed = {
       vehicleId: newVehicle.id,
-      rc: { expiry: '' },
+      rc: { expiry: newVehicle.rcExpiry || '' },
       insurance: { expiry: newVehicle.insurance || '', provider: '' },
       fitness: { expiry: newVehicle.fitness || '' },
-      pollution: { expiry: '' },
+      pollution: { expiry: newVehicle.pollutionExpiry || '' },
       statePermit: { expiry: newVehicle.permit || '' },
       nationalPermit: { expiry: newVehicle.permit || '' },
     };
