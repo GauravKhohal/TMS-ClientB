@@ -109,6 +109,34 @@ async function loadFromDatabase() {
     }
   } catch (e) { console.error('Audit log backfill failed:', e.message); }
 
+  // Reconciliation: fill blank compliance fields from the vehicle's own
+  // insurance/fitness/permit expiry (captured at Add Vehicle time) for any
+  // vehicle whose compliance record predates this sync, or has none yet.
+  // Never overwrites a value already set via the Compliance tab. Cheap and
+  // idempotent at this fleet size — safe to run every boot.
+  let complianceBackfilled = 0;
+  for (const v of vehicles) {
+    if (!v.insurance && !v.fitness && !v.permit) continue;
+    const existing = complianceRecords.find(c => c.vehicleId === v.id);
+    const record = existing || {
+      vehicleId: v.id, rc: { expiry: '' }, insurance: { expiry: '', provider: '' },
+      fitness: { expiry: '' }, pollution: { expiry: '' }, statePermit: { expiry: '' }, nationalPermit: { expiry: '' },
+    };
+    let changed = false;
+    if (v.insurance && !record.insurance?.expiry) { record.insurance = { ...record.insurance, expiry: v.insurance }; changed = true; }
+    if (v.fitness && !record.fitness?.expiry) { record.fitness = { expiry: v.fitness }; changed = true; }
+    if (v.permit && !record.statePermit?.expiry) { record.statePermit = { expiry: v.permit }; changed = true; }
+    if (v.permit && !record.nationalPermit?.expiry) { record.nationalPermit = { expiry: v.permit }; changed = true; }
+    if (!changed) continue;
+    try {
+      const { vehicleId, ...data } = record;
+      await prisma.complianceRecord.upsert({ where: { vehicleId: v.id }, create: record, update: data });
+      if (!existing) complianceRecords.push(record);
+      complianceBackfilled++;
+    } catch (e) { console.error('Compliance backfill failed for vehicle', v.id, e.message); }
+  }
+  if (complianceBackfilled > 0) console.log(`Backfilled compliance fields for ${complianceBackfilled} vehicle(s) from Add Vehicle expiry dates`);
+
   console.log(`Loaded from database: ${users.length} users, ${vehicles.length} vehicles, ${drivers.length} drivers, ${trips.length} trips, ${fuelEntries.length} fuel entries, ${maintenanceRecords.length} maintenance records, ${complianceRecords.length} compliance records, ${consignments.length} consignments, ${pettyCash.length} petty cash entries, ${fastagAccounts.length} fastag accounts, ${fastagTransactions.length} fastag transactions, ${spareParts.length} spare parts, ${spareLedger.length} spare ledger entries, ${tyres.length} tyres`);
 }
 
@@ -352,6 +380,26 @@ app.post('/api/fleet', auth, requireRole('Fleet Manager'), async (req, res) => {
   }
   vehicles.unshift(newVehicle);
   logAudit(req, 'fleet.add', { vehicleId: newVehicle.id, regNumber: newVehicle.regNumber });
+
+  // Seed a compliance record from the expiry dates already captured here, so the
+  // Compliance tab isn't blank for fields the Fleet Manager already provided.
+  // Best-effort: a failure here shouldn't fail vehicle creation, which already succeeded.
+  if (newVehicle.insurance || newVehicle.fitness || newVehicle.permit) {
+    const complianceSeed = {
+      vehicleId: newVehicle.id,
+      rc: { expiry: '' },
+      insurance: { expiry: newVehicle.insurance || '', provider: '' },
+      fitness: { expiry: newVehicle.fitness || '' },
+      pollution: { expiry: '' },
+      statePermit: { expiry: newVehicle.permit || '' },
+      nationalPermit: { expiry: newVehicle.permit || '' },
+    };
+    try {
+      await prisma.complianceRecord.create({ data: complianceSeed });
+      complianceRecords.push(complianceSeed);
+    } catch (e) { console.error('Failed to seed compliance record for new vehicle:', e.message); }
+  }
+
   res.json(newVehicle);
 });
 
