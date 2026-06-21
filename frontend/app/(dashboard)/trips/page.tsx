@@ -503,6 +503,10 @@ function TripsPageInner() {
                       className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700">
                       ✓ Approve
                     </button>
+                    <button onClick={() => openEdit(t)}
+                      className="px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50">
+                      Edit
+                    </button>
                     <button onClick={() => { setRejectModal(t); setRejectReason(''); }}
                       className="px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700">
                       ✗ Reject
