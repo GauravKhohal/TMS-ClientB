@@ -9,6 +9,19 @@ interface DocItem {
   expiry: string;
   daysLeft: number | null;
   provider?: string;
+  documentUrl?: string | null;
+}
+
+type DocKey = 'rc' | 'insurance' | 'fitness' | 'pollution' | 'statePermit' | 'nationalPermit';
+const DOC_KEYS: DocKey[] = ['rc', 'insurance', 'fitness', 'pollution', 'statePermit', 'nationalPermit'];
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 interface ComplianceRecord {
@@ -68,6 +81,12 @@ function ComplianceCell({ item }: { item: DocItem }) {
           {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d left`}
         </div>
       )}
+      {item.documentUrl && (
+        <a href={item.documentUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-0.5 inline-flex items-center gap-0.5">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+          Document
+        </a>
+      )}
     </td>
   );
 }
@@ -93,6 +112,8 @@ export default function CompliancePage() {
   const { preset, setPreset, fromYM, setFromYM, toYM, setToYM, effectiveFrom, effectiveTo, inRange } = useDateRange();
   const [editVehicleId, setEditVehicleId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(EMPTY_COMPLIANCE_FORM);
+  const [existingDocUrls, setExistingDocUrls] = useState<Record<DocKey, string | null | undefined>>({} as Record<DocKey, string | null | undefined>);
+  const [newFiles, setNewFiles] = useState<Partial<Record<DocKey, File>>>({});
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -114,10 +135,19 @@ export default function CompliancePage() {
       statePermitExpiry: r.statePermit.expiry,
       nationalPermitExpiry: r.nationalPermit.expiry,
     });
+    setExistingDocUrls({
+      rc: r.rc.documentUrl, insurance: r.insurance.documentUrl, fitness: r.fitness.documentUrl,
+      pollution: r.pollution.documentUrl, statePermit: r.statePermit.documentUrl, nationalPermit: r.nationalPermit.documentUrl,
+    });
+    setNewFiles({});
   }
 
   function setEditField(field: string, value: string) {
     setEditForm(f => ({ ...f, [field]: value }));
+  }
+
+  function setEditFile(key: DocKey, file: File | undefined) {
+    setNewFiles(f => ({ ...f, [key]: file }));
   }
 
   async function handleSaveCompliance(e: React.FormEvent) {
@@ -125,13 +155,18 @@ export default function CompliancePage() {
     if (!editVehicleId) return;
     setSaving(true);
     try {
+      const docs: Partial<Record<DocKey, string>> = {};
+      for (const key of DOC_KEYS) {
+        const file = newFiles[key];
+        if (file) docs[key] = await readFileAsDataUrl(file);
+      }
       const updated: ComplianceRecord = await api.saveCompliance(editVehicleId, {
-        rc: { expiry: editForm.rcExpiry },
-        insurance: { expiry: editForm.insuranceExpiry, provider: editForm.insuranceProvider },
-        fitness: { expiry: editForm.fitnessExpiry },
-        pollution: { expiry: editForm.pollutionExpiry },
-        statePermit: { expiry: editForm.statePermitExpiry },
-        nationalPermit: { expiry: editForm.nationalPermitExpiry },
+        rc: { expiry: editForm.rcExpiry, document: docs.rc },
+        insurance: { expiry: editForm.insuranceExpiry, provider: editForm.insuranceProvider, document: docs.insurance },
+        fitness: { expiry: editForm.fitnessExpiry, document: docs.fitness },
+        pollution: { expiry: editForm.pollutionExpiry, document: docs.pollution },
+        statePermit: { expiry: editForm.statePermitExpiry, document: docs.statePermit },
+        nationalPermit: { expiry: editForm.nationalPermitExpiry, document: docs.nationalPermit },
       });
       setRecords(prev => prev.map(r => r.vehicleId === updated.vehicleId ? updated : r));
       setEditVehicleId(null);
@@ -317,6 +352,30 @@ export default function CompliancePage() {
                   <input type="date" value={editForm.nationalPermitExpiry} onChange={e => setEditField('nationalPermitExpiry', e.target.value)} className={INPUT} />
                 </Field>
               </div>
+
+              <div className="pt-2 border-t border-slate-100">
+                <div className="text-xs font-medium text-slate-600 mb-2">Documents (PDF or image, optional)</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {([
+                    ['rc', 'RC'], ['insurance', 'Insurance'], ['fitness', 'Fitness Cert.'],
+                    ['pollution', 'Pollution Cert.'], ['statePermit', 'State Permit'], ['nationalPermit', 'National Permit'],
+                  ] as [DocKey, string][]).map(([key, label]) => (
+                    <div key={key}>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-medium text-slate-600">{label}</label>
+                        {existingDocUrls[key] && (
+                          <a href={existingDocUrls[key] as string} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">View current</a>
+                        )}
+                      </div>
+                      <input type="file" accept="application/pdf,image/*"
+                        onChange={e => setEditFile(key, e.target.files?.[0])}
+                        className="w-full text-xs text-slate-500 border border-slate-200 rounded-lg file:mr-2 file:py-1.5 file:px-2 file:border-0 file:bg-slate-100 file:text-xs file:font-medium file:text-slate-600 hover:file:bg-slate-200" />
+                      {newFiles[key] && <div className="text-xs text-green-600 mt-0.5 truncate">Selected: {newFiles[key]!.name}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
                 <button type="button" onClick={() => setEditVehicleId(null)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">

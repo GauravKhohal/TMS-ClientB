@@ -11,6 +11,26 @@ const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRec
 const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Uploads a compliance document (base64 data URI from the browser) to Cloudinary
+// and returns its public URL. `resource_type: 'auto'` handles both scanned
+// photos and PDFs. Overwrites the previous file for the same vehicle+doc type.
+async function uploadComplianceDocument(base64DataUri, vehicleId, docType) {
+  const result = await cloudinary.uploader.upload(base64DataUri, {
+    folder: `compliance/${vehicleId}`,
+    public_id: docType,
+    resource_type: 'auto',
+    overwrite: true,
+  });
+  return result.secure_url;
+}
 
 // Persistent store for users/vehicles/drivers/trips/fuel/maintenance/compliance/
 // consignments/audit log/petty cash/FASTag/spares/tyres/payout pool. Alerts, login
@@ -193,7 +213,9 @@ app.use(cors({
   origin: allowedOrigins,
   credentials: true,
 }));
-app.use(express.json());
+// Default 100kb is far too small for compliance document uploads (base64-encoded
+// PDFs/photos easily exceed that) — raised to accommodate them.
+app.use(express.json({ limit: '15mb' }));
 
 const auth = (req, res, next) => {
   const token = req.headers.authorization?.split(' ')[1];
@@ -919,14 +941,34 @@ app.put('/api/compliance/:vehicleId', auth, requireRole('Fleet Manager'), async 
   if (!vehicles.find(v => v.id === vehicleId)) return res.status(404).json({ error: 'Vehicle not found' });
 
   const { rc, insurance, fitness, pollution, statePermit, nationalPermit } = req.body;
+  const existing = complianceRecords.find(c => c.vehicleId === vehicleId);
+
+  // Each doc type may include a `document` (base64 data URI) if the user just
+  // selected a new file — upload it and use the new URL. Otherwise keep
+  // whatever document URL (if any) was already on file, so editing just the
+  // expiry date doesn't wipe out a previously uploaded document.
+  const docInputs = { rc, insurance, fitness, pollution, statePermit, nationalPermit };
+  const documentUrls = {};
+  for (const [key, input] of Object.entries(docInputs)) {
+    if (input?.document) {
+      try { documentUrls[key] = await uploadComplianceDocument(input.document, vehicleId, key); }
+      catch (e) {
+        console.error(`Failed to upload ${key} document:`, e.message);
+        return res.status(500).json({ error: `Failed to upload the ${key} document. Please try again.` });
+      }
+    } else {
+      documentUrls[key] = existing?.[key]?.documentUrl || null;
+    }
+  }
+
   const record = {
     vehicleId,
-    rc:             { expiry: rc?.expiry || '' },
-    insurance:      { expiry: insurance?.expiry || '', provider: insurance?.provider || '' },
-    fitness:        { expiry: fitness?.expiry || '' },
-    pollution:      { expiry: pollution?.expiry || '' },
-    statePermit:    { expiry: statePermit?.expiry || '' },
-    nationalPermit: { expiry: nationalPermit?.expiry || '' },
+    rc:             { expiry: rc?.expiry || '', documentUrl: documentUrls.rc },
+    insurance:      { expiry: insurance?.expiry || '', provider: insurance?.provider || '', documentUrl: documentUrls.insurance },
+    fitness:        { expiry: fitness?.expiry || '', documentUrl: documentUrls.fitness },
+    pollution:      { expiry: pollution?.expiry || '', documentUrl: documentUrls.pollution },
+    statePermit:    { expiry: statePermit?.expiry || '', documentUrl: documentUrls.statePermit },
+    nationalPermit: { expiry: nationalPermit?.expiry || '', documentUrl: documentUrls.nationalPermit },
   };
 
   try {
@@ -939,7 +981,7 @@ app.put('/api/compliance/:vehicleId', auth, requireRole('Fleet Manager'), async 
 
   const idx = complianceRecords.findIndex(c => c.vehicleId === vehicleId);
   if (idx >= 0) complianceRecords[idx] = record; else complianceRecords.push(record);
-  logAudit(req, 'compliance.update', { vehicleId });
+  logAudit(req, 'compliance.update', { vehicleId, documentsUploaded: Object.entries(docInputs).filter(([, v]) => v?.document).map(([k]) => k) });
 
   res.json(computeComplianceRecord(vehicleId));
 });
