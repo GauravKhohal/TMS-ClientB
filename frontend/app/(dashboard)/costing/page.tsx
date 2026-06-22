@@ -136,7 +136,7 @@ export default function CostingPage() {
     const win = window.open('', '_blank')!;
     win.document.write(`<html><head><title>TMS Costing Report</title>
       <style>body{font-family:sans-serif;padding:24px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f1f5f9}h1{color:#1e293b}</style></head><body>
-      <h1>Trip-wise P&L Statement</h1>
+      <h1>Trip-wise Statement</h1>
       <p>Generated: ${new Date().toLocaleString('en-IN')}</p>
       <table><thead><tr><th>Trip</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Margin</th></tr></thead><tbody>
       ${costings.map(c => `<tr><td>${c.tripId}</td><td>₹${c.revenue.toLocaleString()}</td><td>₹${c.totalCost.toLocaleString()}</td><td>₹${c.profit.toLocaleString()}</td><td>${c.margin}%</td></tr>`).join('')}
@@ -200,7 +200,7 @@ export default function CostingPage() {
       {/* Trip P&L Table */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="p-4 border-b border-slate-100 flex justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">Trip-wise P&L Statement</h3>
+          <h3 className="text-sm font-semibold text-slate-800">Trip-wise Statement</h3>
           <div className="flex gap-2">
             <button onClick={handleExportPDF}
               className="text-sm text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 flex items-center gap-1.5">
