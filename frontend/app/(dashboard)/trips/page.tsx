@@ -377,6 +377,30 @@ function TripsPageInner() {
     setPlacementSaving(false);
   }
 
+  // Auto-populate the CN form from a placed vehicle's trip — lets the user pick
+  // by voucher no. (Against No.) instead of retyping vehicle/route/party details
+  // that are already known from the placement.
+  function applyPlacedTrip(voucherNo: string) {
+    const trip = placementDone.find(t => t.voucherNo === voucherNo);
+    if (!trip) { setCnForm(f => ({ ...f, againstNo: voucherNo })); return; }
+    setCnForm(f => {
+      const firstItemEmpty = f.items.length === 1 && !f.items[0].content && !f.items[0].weight && !f.items[0].pkgs && !f.items[0].freight;
+      return {
+        ...f,
+        againstNo: trip.voucherNo,
+        vehicleId: trip.vehicleId,
+        source: trip.origin,
+        destination: trip.destination,
+        consignor: trip.customer,
+        billingParty: trip.customer,
+        godown: trip.origin,
+        items: firstItemEmpty
+          ? [{ ...f.items[0], content: trip.content || '', pkgs: trip.packages ? String(trip.packages) : '', weight: trip.weight ? String(trip.weight) : '', freight: trip.freight ? String(trip.freight) : '' }]
+          : f.items,
+      };
+    });
+  }
+
   function openCnGenerate(trip: Trip) {
     setCnForm({
       ...EMPTY_CN(),
@@ -1430,7 +1454,16 @@ function TripsPageInner() {
                     </select>
                   </Field>
                   <Field label="Against No.">
-                    <input className={INPUT} value={cnForm.againstNo} onChange={e => setCnForm(f => ({ ...f, againstNo: e.target.value }))} />
+                    {cnForm.against === 'PLACEMENT' && !cnModal ? (
+                      <select className={SELECT} value={cnForm.againstNo} onChange={e => applyPlacedTrip(e.target.value)}>
+                        <option value="">Select placed vehicle…</option>
+                        {placementDone.map(t => (
+                          <option key={t.id} value={t.voucherNo}>{t.voucherNo} · {t.vehicleId} · {t.origin} → {t.destination}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input className={INPUT} value={cnForm.againstNo} onChange={e => setCnForm(f => ({ ...f, againstNo: e.target.value }))} />
+                    )}
                   </Field>
                   <Field label="Vehicle No. *">
                     <input required className={INPUT} value={cnForm.vehicleId} onChange={e => setCnForm(f => ({ ...f, vehicleId: e.target.value }))} placeholder="V001" />
