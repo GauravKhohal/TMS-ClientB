@@ -437,9 +437,12 @@ function TripsPageInner() {
   });
   const counts = Object.fromEntries(statuses.map(s => [s, s === 'All' ? filtered.length : filtered.filter(t => t.status === s).length]));
 
-  // Vehicle Placement tab
+  // Vehicle Placement tab — "Placed Vehicles" is a working view of active
+  // placements, not a permanent log, so trips that have finished (Completed)
+  // or been called off (Cancelled) roll off it. They're still fully visible
+  // in the main Trip Management tab and persisted in Postgres either way.
   const placementPending = trips.filter(t => t.approvalStatus === 'Approved' && !t.placementConfirmed);
-  const placementDone     = trips.filter(t => t.approvalStatus === 'Approved' && t.placementConfirmed);
+  const placementDone     = trips.filter(t => t.approvalStatus === 'Approved' && t.placementConfirmed && t.status !== 'Completed' && t.status !== 'Cancelled');
 
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
