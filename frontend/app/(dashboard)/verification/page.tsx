@@ -29,7 +29,7 @@ interface Driver {
 
 interface LogEntry {
   id: string;
-  type: 'RC' | 'DL' | 'PAN';
+  type: 'RC' | 'DL' | 'PAN' | 'Market RC';
   entityId: string;
   entityName: string;
   status: string;
@@ -37,6 +37,39 @@ interface LogEntry {
   timestamp: string;
   checkedBy: string;
 }
+
+interface MarketDocCheck { status: 'Valid' | 'Expired'; expiry?: string; }
+
+interface MarketVehicleResult {
+  status: 'Compliant' | 'Issues Found' | 'Not Found';
+  lastChecked: string;
+  refId: string;
+  source: string;
+  regNumber: string;
+  details: {
+    error?: string;
+    registrationNumber?: string;
+    vehicleClass?: string;
+    rcStatus?: string;
+    checks?: {
+      rc: { status: string };
+      insurance: MarketDocCheck;
+      fitness: MarketDocCheck;
+      permit: MarketDocCheck;
+      pollution: MarketDocCheck;
+    };
+  };
+}
+
+const MARKET_STATUS_STYLES: Record<string, string> = {
+  Compliant: 'bg-green-100 text-green-700',
+  'Issues Found': 'bg-yellow-100 text-yellow-700',
+  'Not Found': 'bg-red-100 text-red-700',
+};
+
+const MARKET_DOC_LABELS: Record<string, string> = {
+  insurance: 'Insurance', fitness: 'Fitness Certificate', permit: 'Permit', pollution: 'Pollution Cert.',
+};
 
 const STATUS_STYLES: Record<string, string> = {
   'Not Verified': 'bg-slate-100 text-slate-500',
@@ -88,6 +121,9 @@ export default function VerificationPage() {
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [toast, setToast] = useState('');
   const [detail, setDetail] = useState<{ title: string; entity: string; result: VerificationResult } | null>(null);
+  const [marketRegNumber, setMarketRegNumber] = useState('');
+  const [marketChecking, setMarketChecking] = useState(false);
+  const [marketResult, setMarketResult] = useState<MarketVehicleResult | null>(null);
 
   useEffect(() => {
     Promise.all([api.fleet(), api.drivers(), api.verificationLog()])
@@ -160,6 +196,23 @@ export default function VerificationPage() {
     }
   }
 
+  async function checkMarketVehicle(e: React.FormEvent) {
+    e.preventDefault();
+    if (!marketRegNumber.trim()) return;
+    setMarketChecking(true);
+    setMarketResult(null);
+    try {
+      const res = await api.verifyMarketVehicle(marketRegNumber.trim());
+      setMarketResult(res.result);
+      refreshLog();
+    } catch {
+      setToast('Compliance check failed. Please try again.');
+      setTimeout(() => setToast(''), 3000);
+    } finally {
+      setMarketChecking(false);
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
 
   const allChecks = [
@@ -188,6 +241,58 @@ export default function VerificationPage() {
       <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2.5 rounded-xl flex items-center gap-2">
         <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         <span><strong>Simulated for demo purposes</strong> — these checks do not call Parivahan (VAHAN) or NSDL. Results are not a real compliance verification.</span>
+      </div>
+
+      {/* Market Vehicle Compliance Check — for hired/third-party vehicles not in this fleet */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+        <h3 className="text-sm font-semibold text-slate-800">Verify Market Vehicle</h3>
+        <p className="text-xs text-slate-500 mt-0.5 mb-3">
+          Check a hired/market vehicle&apos;s RC, insurance, fitness, permit &amp; pollution status before dispatch — no need to add it to your fleet.
+        </p>
+        <form onSubmit={checkMarketVehicle} className="flex items-end gap-3">
+          <div className="flex-1 max-w-xs">
+            <label className="block text-xs font-medium text-slate-600 mb-1">Registration Number</label>
+            <input required value={marketRegNumber} onChange={e => setMarketRegNumber(e.target.value)}
+              placeholder="MH-12-AB-1234"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <button type="submit" disabled={marketChecking}
+            className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+            {marketChecking && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+            {marketChecking ? 'Checking…' : 'Check Compliance'}
+          </button>
+        </form>
+
+        {marketResult && (
+          <div className="mt-4 border-t border-slate-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <span className="font-mono text-sm font-medium text-slate-700">{marketResult.regNumber}</span>
+                <span className="text-xs text-slate-400 ml-2">{formatTimestamp(marketResult.lastChecked)} · {marketResult.refId}</span>
+              </div>
+              <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${MARKET_STATUS_STYLES[marketResult.status]}`}>
+                {marketResult.status}
+              </span>
+            </div>
+
+            {marketResult.status === 'Not Found' ? (
+              <div className="text-sm text-red-600 bg-red-50 rounded-lg p-3">{marketResult.details.error}</div>
+            ) : marketResult.details.checks && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {(['insurance', 'fitness', 'permit', 'pollution'] as const).map(key => {
+                  const doc = marketResult.details.checks![key];
+                  return (
+                    <div key={key} className={`rounded-lg p-3 ${doc.status === 'Valid' ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <div className="text-xs text-slate-500">{MARKET_DOC_LABELS[key]}</div>
+                      <div className={`text-sm font-semibold ${doc.status === 'Valid' ? 'text-green-700' : 'text-red-700'}`}>{doc.status}</div>
+                      {doc.expiry && <div className="text-xs text-slate-400 mt-0.5">Exp: {doc.expiry}</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Summary cards */}
@@ -310,7 +415,7 @@ export default function VerificationPage() {
                 <tr key={entry.id} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs text-slate-500">{formatTimestamp(entry.timestamp)}</td>
                   <td className="px-4 py-3 text-sm font-medium text-slate-700">{entry.type}</td>
-                  <td className="px-4 py-3 text-sm text-slate-600">{entry.entityId} · {entry.entityName}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{entry.entityId === entry.entityName ? entry.entityName : `${entry.entityId} · ${entry.entityName}`}</td>
                   <td className="px-4 py-3"><StatusBadge status={entry.status} /></td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-400">{entry.refId}</td>
                   <td className="px-4 py-3 text-sm text-slate-600">{entry.checkedBy}</td>

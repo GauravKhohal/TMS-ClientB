@@ -131,6 +131,7 @@ export const api = {
   verifyRC: (vehicleId: string) => request(`/verify/rc/${vehicleId}`, { method: 'POST' }),
   verifyDL: (driverId: string) => request(`/verify/dl/${driverId}`, { method: 'POST' }),
   verifyPAN: (driverId: string) => request(`/verify/pan/${driverId}`, { method: 'POST' }),
+  verifyMarketVehicle: (regNumber: string) => request('/verify/market-vehicle', { method: 'POST', body: JSON.stringify({ regNumber }) }),
   verificationLog: () => request('/verify/log'),
   spares: () => request('/spares'),
   sparesLedger: () => request('/spares/ledger'),

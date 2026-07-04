@@ -1097,6 +1097,78 @@ app.post('/api/verify/pan/:driverId', auth, requireRole('Fleet Manager'), (req, 
   res.json({ success: true, driverId: d.id, panVerification: d.panVerification });
 });
 
+// Market vehicle compliance check — for hired/third-party vehicles that aren't
+// in this fleet's own vehicle list (transporters sometimes sub in a market
+// vehicle when their own truck isn't available, and want to confirm it's
+// roadworthy before dispatch). Simulated for demo purposes, same as the RC/DL/
+// PAN checks above — swap in a real VAHAN-backed provider (e.g. Eko, Surepass)
+// here once one is chosen. Outcome is derived deterministically from the reg.
+// number so repeat checks on the same vehicle give a consistent result.
+function hashRegNumber(regNumber) {
+  let hash = 0;
+  for (const ch of regNumber.toUpperCase()) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return hash;
+}
+
+function addMonths(base, months) {
+  const d = new Date(base);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
+app.post('/api/verify/market-vehicle', auth, requireRole('Fleet Manager'), (req, res) => {
+  const regNumber = String(req.body.regNumber || '').trim().toUpperCase();
+  if (!regNumber) return res.status(400).json({ error: 'Registration number is required' });
+
+  const timestamp = new Date().toISOString();
+  const refId = 'PAR-MKT-' + Date.now().toString(36).toUpperCase();
+  const hash = hashRegNumber(regNumber);
+  const bucket = hash % 10; // 0-6 compliant, 7-8 issues found, 9 not found
+
+  if (bucket === 9) {
+    const result = {
+      status: 'Not Found', lastChecked: timestamp, refId, source: 'Parivahan (VAHAN)',
+      regNumber, details: { error: 'RC record not found in VAHAN database for this registration number.' },
+    };
+    logVerification(req, 'Market RC', regNumber, regNumber, 'Failed', refId, timestamp);
+    logAudit(req, 'verify.marketVehicle', { regNumber, status: 'Not Found', refId });
+    return res.json({ success: true, result });
+  }
+
+  const hasIssue = bucket >= 7;
+  // Pick one document to be expired/expiring when there's an issue, chosen from the hash so it's stable per reg. number.
+  const docKeys = ['insurance', 'fitness', 'permit', 'pollution'];
+  const issueDoc = docKeys[hash % docKeys.length];
+  function docStatus(key) {
+    if (hasIssue && key === issueDoc) {
+      return { status: 'Expired', expiry: addMonths(timestamp, -1) };
+    }
+    return { status: 'Valid', expiry: addMonths(timestamp, 3 + (hash % 12)) };
+  }
+
+  const checks = {
+    rc: { status: 'Valid' },
+    insurance: docStatus('insurance'),
+    fitness: docStatus('fitness'),
+    permit: docStatus('permit'),
+    pollution: docStatus('pollution'),
+  };
+
+  const result = {
+    status: hasIssue ? 'Issues Found' : 'Compliant',
+    lastChecked: timestamp, refId, source: 'Parivahan (VAHAN)', regNumber,
+    details: {
+      registrationNumber: regNumber,
+      vehicleClass: 'Goods Vehicle',
+      rcStatus: 'Active',
+      checks,
+    },
+  };
+  logVerification(req, 'Market RC', regNumber, regNumber, hasIssue ? 'Mismatch' : 'Verified', refId, timestamp);
+  logAudit(req, 'verify.marketVehicle', { regNumber, status: result.status, refId });
+  res.json({ success: true, result });
+});
+
 // Alerts — auto-generated from real expiry dates + manual alerts
 app.get('/api/alerts', auth, (req, res) => {
   const today = new Date();
