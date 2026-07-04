@@ -4,8 +4,11 @@ import * as XLSX from 'xlsx';
 import { api } from '@/lib/api';
 import { DateRangeBar } from '@/components/DateRangeBar';
 import { useDateRange } from '@/lib/useDateRange';
+import { readFileAsDataUrl } from '@/lib/files';
 
 interface EmiPayment { month: string; date: string; amount: number; }
+
+type VehicleDocKey = 'rc' | 'insurance' | 'fitness' | 'pollution' | 'permit';
 
 interface Vehicle {
   id: string; regNumber: string; make: string; model: string; year: number;
@@ -104,6 +107,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 const INPUT = "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500";
 const SELECT = "w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white";
 
+function DocField({ label, expiry, onExpiryChange, file, onFileChange }: {
+  label: string; expiry: string; onExpiryChange: (v: string) => void;
+  file: File | undefined; onFileChange: (f: File | undefined) => void;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <input required type="date" value={expiry} onChange={e => onExpiryChange(e.target.value)} className={INPUT} />
+      <input type="file" accept="application/pdf,image/*" onChange={e => onFileChange(e.target.files?.[0])}
+        className="w-full mt-1.5 text-xs text-slate-500 border border-slate-200 rounded-lg file:mr-2 file:py-1 file:px-2 file:border-0 file:bg-slate-100 file:text-xs file:font-medium file:text-slate-600 hover:file:bg-slate-200" />
+      {file && <div className="text-xs text-green-600 mt-0.5 truncate">Selected: {file.name}</div>}
+    </div>
+  );
+}
+
 const EXCEL_COLS = [
   'Reg Number', 'Make', 'Model', 'Year', 'Category', 'Ownership Type',
   'Capacity', 'Fuel Type', 'Odometer (km)', 'Insurance Expiry', 'Fitness Expiry',
@@ -164,6 +182,7 @@ export default function FleetPage() {
   const [selected, setSelected] = useState<Vehicle | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [docFiles, setDocFiles] = useState<Partial<Record<VehicleDocKey, File>>>({});
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -259,6 +278,10 @@ export default function FleetPage() {
     setForm(f => ({ ...f, [field]: value }));
   }
 
+  function setDocFile(key: VehicleDocKey, file: File | undefined) {
+    setDocFiles(f => ({ ...f, [key]: file }));
+  }
+
   async function handlePayEMI(vehicleId: string) {
     setPayingEMI(prev => new Set(prev).add(vehicleId));
     try {
@@ -290,10 +313,38 @@ export default function FleetPage() {
     try {
       const newVehicle = await api.createVehicle(form) as Vehicle;
       setVehicles(v => [newVehicle, ...v]);
+
+      let docUploadFailed = false;
+      if (Object.values(docFiles).some(Boolean)) {
+        try {
+          const docs: Partial<Record<VehicleDocKey, string>> = {};
+          for (const key of ['rc', 'insurance', 'fitness', 'pollution', 'permit'] as VehicleDocKey[]) {
+            const file = docFiles[key];
+            if (file) docs[key] = await readFileAsDataUrl(file);
+          }
+          await api.saveCompliance(newVehicle.id, {
+            rc: { expiry: form.rcExpiry, document: docs.rc },
+            insurance: { expiry: form.insurance, document: docs.insurance },
+            fitness: { expiry: form.fitness, document: docs.fitness },
+            pollution: { expiry: form.pollutionExpiry, document: docs.pollution },
+            statePermit: { expiry: form.permit, document: docs.permit },
+            nationalPermit: { expiry: form.permit, document: docs.permit },
+          });
+        } catch (docErr) {
+          console.error('Failed to upload vehicle documents:', docErr);
+          docUploadFailed = true;
+        }
+      }
+
       setForm(EMPTY_FORM);
+      setDocFiles({});
       setShowAdd(false);
       setSuccessMsg(`Vehicle ${form.regNumber} added successfully!`);
       setTimeout(() => setSuccessMsg(''), 3000);
+      if (docUploadFailed) {
+        setErrorMsg('Vehicle added, but one or more documents failed to upload. Add them from the Compliance page.');
+        setTimeout(() => setErrorMsg(''), 5000);
+      }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to add vehicle');
       setTimeout(() => setErrorMsg(''), 4000);
@@ -589,28 +640,24 @@ export default function FleetPage() {
 
               {/* Documents */}
               <div>
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Document Expiry Dates</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Document Expiry Dates &amp; Uploads</p>
+                <p className="text-xs text-slate-400 -mt-2 mb-3">Attach a scan/photo of each document (PDF or image, optional) to confirm compliance.</p>
                 <div className="grid grid-cols-3 gap-4">
-                  <Field label="Insurance Expiry *">
-                    <input required type="date" value={form.insurance} onChange={e => set('insurance', e.target.value)} className={INPUT} />
-                  </Field>
-                  <Field label="Fitness Certificate Expiry *">
-                    <input required type="date" value={form.fitness} onChange={e => set('fitness', e.target.value)} className={INPUT} />
-                  </Field>
-                  <Field label="Permit Expiry *">
-                    <input required type="date" value={form.permit} onChange={e => set('permit', e.target.value)} className={INPUT} />
-                  </Field>
-                  <Field label="RC Expiry *">
-                    <input required type="date" value={form.rcExpiry} onChange={e => set('rcExpiry', e.target.value)} className={INPUT} />
-                  </Field>
-                  <Field label="Pollution Cert. Expiry *">
-                    <input required type="date" value={form.pollutionExpiry} onChange={e => set('pollutionExpiry', e.target.value)} className={INPUT} />
-                  </Field>
+                  <DocField label="Insurance Expiry *" expiry={form.insurance} onExpiryChange={v => set('insurance', v)}
+                    file={docFiles.insurance} onFileChange={f => setDocFile('insurance', f)} />
+                  <DocField label="Fitness Certificate Expiry *" expiry={form.fitness} onExpiryChange={v => set('fitness', v)}
+                    file={docFiles.fitness} onFileChange={f => setDocFile('fitness', f)} />
+                  <DocField label="Permit Expiry *" expiry={form.permit} onExpiryChange={v => set('permit', v)}
+                    file={docFiles.permit} onFileChange={f => setDocFile('permit', f)} />
+                  <DocField label="RC Expiry *" expiry={form.rcExpiry} onExpiryChange={v => set('rcExpiry', v)}
+                    file={docFiles.rc} onFileChange={f => setDocFile('rc', f)} />
+                  <DocField label="Pollution Cert. Expiry *" expiry={form.pollutionExpiry} onExpiryChange={v => set('pollutionExpiry', v)}
+                    file={docFiles.pollution} onFileChange={f => setDocFile('pollution', f)} />
                 </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setShowAdd(false)}
+                <button type="button" onClick={() => { setShowAdd(false); setDocFiles({}); }}
                   className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
                 <button type="submit" disabled={saving}
                   className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">

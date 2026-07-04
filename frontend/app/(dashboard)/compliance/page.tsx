@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { DateRangeBar } from '@/components/DateRangeBar';
 import { useDateRange } from '@/lib/useDateRange';
+import { readFileAsDataUrl } from '@/lib/files';
 
 interface DocItem {
   status: string;
@@ -14,15 +15,6 @@ interface DocItem {
 
 type DocKey = 'rc' | 'insurance' | 'fitness' | 'pollution' | 'statePermit' | 'nationalPermit';
 const DOC_KEYS: DocKey[] = ['rc', 'insurance', 'fitness', 'pollution', 'statePermit', 'nationalPermit'];
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
 
 interface ComplianceRecord {
   vehicleId: string;
