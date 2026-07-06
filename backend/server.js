@@ -193,6 +193,7 @@ function tripDbFields(t) {
     placementRemarks: t.placementRemarks ?? null, cnNumber: t.cnNumber ?? null, cnDate: t.cnDate ?? null,
     consigneeName: t.consigneeName ?? null, consigneeAddress: t.consigneeAddress ?? null,
     consigneeContact: t.consigneeContact ?? null,
+    driverAcceptanceStatus: t.driverAcceptanceStatus ?? 'Pending', driverRejectionReason: t.driverRejectionReason ?? null,
   };
 }
 
@@ -349,6 +350,126 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   const fakeReq = { user: { id: user.id, name: user.name, role: user.role }, headers: req.headers, socket: req.socket };
   logAudit(fakeReq, 'auth.login', { email: user.email, ip });
   res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+});
+
+// ── Driver auth (phone + OTP) ────────────────────────────────────────────────
+// Drivers aren't `User` records (no password/role), so they get their own
+// login: request an OTP by phone, verify it for a driver-scoped JWT. OTPs are
+// sent via the same WhatsApp sender used for trip-approval notifications
+// (sendWhatsAppMessage/toWhatsAppNumber above); when WhatsApp isn't configured
+// (WHATSAPP_TOKEN/WHATSAPP_PHONE_NUMBER_ID blank, as in this env today), the
+// code is echoed back in the response instead so the flow is usable without it.
+const driverOtps = {}; // { [driverId]: { otp, expiresAt } }
+const OTP_TTL_MS = 5 * 60 * 1000;
+
+const driverOtpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many OTP requests. Please try again in 15 minutes.' },
+});
+
+function findDriverByPhone(phone) {
+  const normalized = toWhatsAppNumber(phone);
+  if (!normalized) return null;
+  return drivers.find(d => toWhatsAppNumber(d.phone) === normalized) || null;
+}
+
+app.post('/api/driver-auth/request-otp', driverOtpLimiter, async (req, res) => {
+  const driver = findDriverByPhone(req.body.phone);
+  if (!driver) return res.status(404).json({ error: 'No driver account found for this phone number.' });
+  if (driver.status !== 'Active') return res.status(403).json({ error: 'This driver account is inactive.' });
+
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  driverOtps[driver.id] = { otp, expiresAt: Date.now() + OTP_TTL_MS };
+  const result = await sendWhatsAppMessage(driver.phone, `Your TMS login OTP is ${otp}. It expires in 5 minutes.`);
+  if (!result.sent) console.error(`OTP WhatsApp message to driver ${driver.id} (${driver.name}) not sent:`, result.reason);
+
+  res.json({
+    success: true,
+    driverName: driver.name,
+    sent: result.sent,
+    // Demo fallback only: WhatsApp isn't actually delivering, so hand the code
+    // back directly instead of leaving the driver with no way to log in.
+    otp: result.sent ? undefined : otp,
+  });
+});
+
+app.post('/api/driver-auth/verify-otp', async (req, res) => {
+  const { phone, otp } = req.body;
+  const driver = findDriverByPhone(phone);
+  if (!driver) return res.status(404).json({ error: 'No driver account found for this phone number.' });
+  const pending = driverOtps[driver.id];
+  if (!pending || pending.expiresAt < Date.now()) return res.status(401).json({ error: 'OTP expired or not requested. Please request a new one.' });
+  if (pending.otp !== String(otp || '')) return res.status(401).json({ error: 'Incorrect OTP.' });
+
+  delete driverOtps[driver.id];
+  const token = jwt.sign({ driverId: driver.id, phone: driver.phone, scope: 'driver' }, JWT_SECRET, { expiresIn: '30d' });
+  const fakeReq = { user: { id: driver.id, name: driver.name, role: 'Driver' }, headers: req.headers, socket: req.socket };
+  logAudit(fakeReq, 'driver.login', { driverId: driver.id, phone: driver.phone });
+  res.json({ token, driver: { id: driver.id, name: driver.name, phone: driver.phone } });
+});
+
+const driverAuth = (req, res, next) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'No token' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.scope !== 'driver') return res.status(403).json({ error: 'Not a driver token' });
+    req.driver = payload;
+    next();
+  } catch { res.status(401).json({ error: 'Invalid token' }); }
+};
+
+// Finds the trips currently placed on this driver (own driverId, or the driver
+// assigned to the trip's vehicle — same fallback as notifyDriverOfApprovedTrip),
+// excluding trips that have already finished or been called off.
+function findDriverActiveTrips(driverId) {
+  return trips.filter(t => {
+    if (t.approvalStatus !== 'Approved' || !t.placementConfirmed) return false;
+    if (t.status === 'Completed' || t.status === 'Cancelled') return false;
+    const vehicleDriverId = vehicles.find(v => v.id === t.vehicleId)?.driver;
+    return t.driverId === driverId || vehicleDriverId === driverId;
+  });
+}
+
+app.get('/api/driver/trips', driverAuth, (req, res) => {
+  const myTrips = findDriverActiveTrips(req.driver.driverId).map(t => {
+    const vehicle = vehicles.find(v => v.id === t.vehicleId);
+    return {
+      id: t.id, voucherNo: t.voucherNo, origin: t.origin, destination: t.destination,
+      customer: t.customer, cargo: t.cargo, content: t.content, weight: t.weight, packages: t.packages,
+      plannedDate: t.plannedDate, eta: t.eta, distance: t.distance,
+      vehicleRegNumber: vehicle?.regNumber || t.vehicleId,
+      driverAcceptanceStatus: t.driverAcceptanceStatus, driverRejectionReason: t.driverRejectionReason,
+    };
+  });
+  res.json(myTrips);
+});
+
+app.patch('/api/driver/trips/:id/respond', driverAuth, async (req, res) => {
+  const trip = trips.find(t => t.id === req.params.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  const isMine = findDriverActiveTrips(req.driver.driverId).some(t => t.id === trip.id);
+  if (!isMine) return res.status(403).json({ error: 'This trip is not assigned to you.' });
+
+  const { decision, reason } = req.body;
+  if (decision !== 'Accepted' && decision !== 'Rejected') return res.status(400).json({ error: 'decision must be Accepted or Rejected' });
+  if (decision === 'Rejected' && !reason?.trim()) return res.status(400).json({ error: 'A reason is required to reject a trip.' });
+
+  const rejectionReason = decision === 'Rejected' ? reason.trim() : null;
+  try {
+    await prisma.trip.update({ where: { id: trip.id }, data: { driverAcceptanceStatus: decision, driverRejectionReason: rejectionReason } });
+  } catch (e) {
+    console.error('Failed to persist driver trip response:', e.message);
+    return res.status(500).json({ error: 'Failed to save your response. Please try again.' });
+  }
+  trip.driverAcceptanceStatus = decision;
+  trip.driverRejectionReason = rejectionReason;
+  const fakeReq = { user: { id: req.driver.driverId, name: req.driver.driverId, role: 'Driver' }, headers: req.headers, socket: req.socket };
+  logAudit(fakeReq, 'driver.trip.respond', { tripId: trip.id, decision, reason: rejectionReason });
+  res.json({ success: true, trip });
 });
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -634,6 +755,7 @@ app.post('/api/trips', auth, requireRole('Fleet Manager', 'Dispatcher'), async (
     rejectionReason: '',
     actualDeparture: null, actualKm: 0, tollCost: 0, fuelCost: 0, pod: false, delay: 0,
     stops: (data.viaStops || []).map(s => s.city),
+    driverAcceptanceStatus: 'Pending', driverRejectionReason: null,
   };
   try { await prisma.trip.create({ data: { id: newTrip.id, ...tripDbFields(newTrip) } }); }
   catch (e) {
@@ -714,9 +836,13 @@ app.patch('/api/trips/:id/placement', auth, requireRole('Fleet Manager', 'Dispat
     return res.status(400).json({ error: 'Vehicle, driver and placement date/time are required' });
   }
   const remarks = placementRemarks || '';
+  // A (re)placement is a fresh assignment the driver hasn't responded to yet —
+  // reset their acceptance status so a stale Accepted/Rejected from a previous
+  // driver/vehicle on this trip doesn't carry over.
   try {
     await prisma.trip.update({ where: { id: trip.id }, data: {
       vehicleId, driverId, placementDateTime, placementRemarks: remarks, placementConfirmed: true,
+      driverAcceptanceStatus: 'Pending', driverRejectionReason: null,
     }});
   } catch (e) {
     console.error('Failed to persist trip placement:', e.message);
@@ -727,6 +853,8 @@ app.patch('/api/trips/:id/placement', auth, requireRole('Fleet Manager', 'Dispat
   trip.placementDateTime = placementDateTime;
   trip.placementRemarks = remarks;
   trip.placementConfirmed = true;
+  trip.driverAcceptanceStatus = 'Pending';
+  trip.driverRejectionReason = null;
   logAudit(req, 'trip.placement', { tripId: trip.id, vehicleId, driverId, placementDateTime });
   res.json({ success: true, trip });
 });

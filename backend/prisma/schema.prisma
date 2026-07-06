@@ -145,6 +145,8 @@ model Trip {
   consigneeName      String?
   consigneeAddress   String?
   consigneeContact   String?
+  driverAcceptanceStatus String @default("Pending")
+  driverRejectionReason  String?
   createdAt        DateTime @default(now())
 }
 
