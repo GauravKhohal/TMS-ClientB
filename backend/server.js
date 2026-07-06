@@ -440,7 +440,7 @@ app.get('/api/driver/trips', driverAuth, (req, res) => {
     return {
       id: t.id, voucherNo: t.voucherNo, origin: t.origin, destination: t.destination,
       customer: t.customer, cargo: t.cargo, content: t.content, weight: t.weight, packages: t.packages,
-      plannedDate: t.plannedDate, eta: t.eta, distance: t.distance,
+      plannedDate: t.plannedDate, eta: t.eta, distance: t.distance, status: t.status,
       vehicleRegNumber: vehicle?.regNumber || t.vehicleId,
       driverAcceptanceStatus: t.driverAcceptanceStatus, driverRejectionReason: t.driverRejectionReason,
     };
@@ -469,6 +469,38 @@ app.patch('/api/driver/trips/:id/respond', driverAuth, async (req, res) => {
   trip.driverRejectionReason = rejectionReason;
   const fakeReq = { user: { id: req.driver.driverId, name: req.driver.driverId, role: 'Driver' }, headers: req.headers, socket: req.socket };
   logAudit(fakeReq, 'driver.trip.respond', { tripId: trip.id, decision, reason: rejectionReason });
+  res.json({ success: true, trip });
+});
+
+// Driver-reported trip progress — a driver can only move their own accepted
+// trip forward one step at a time (Planned -> In Transit -> Completed).
+// "Delayed" isn't driver-settable here; that's an observed state, not
+// self-declared.
+const DRIVER_STATUS_TRANSITIONS = { Planned: 'In Transit', 'In Transit': 'Completed' };
+
+app.patch('/api/driver/trips/:id/status', driverAuth, async (req, res) => {
+  const trip = trips.find(t => t.id === req.params.id);
+  if (!trip) return res.status(404).json({ error: 'Trip not found' });
+  const isMine = findDriverActiveTrips(req.driver.driverId).some(t => t.id === trip.id);
+  if (!isMine) return res.status(403).json({ error: 'This trip is not assigned to you.' });
+  if (trip.driverAcceptanceStatus !== 'Accepted') return res.status(400).json({ error: 'Accept this trip before updating its status.' });
+
+  const { status } = req.body;
+  const expectedNext = DRIVER_STATUS_TRANSITIONS[trip.status];
+  if (status !== expectedNext) return res.status(400).json({ error: `Cannot move from ${trip.status} to ${status}.` });
+
+  const startingTrip = status === 'In Transit';
+  const actualDeparture = startingTrip ? (trip.actualDeparture || new Date().toISOString().slice(0, 10)) : trip.actualDeparture;
+  try {
+    await prisma.trip.update({ where: { id: trip.id }, data: { status, actualDeparture } });
+  } catch (e) {
+    console.error('Failed to persist driver trip status update:', e.message);
+    return res.status(500).json({ error: 'Failed to update trip status. Please try again.' });
+  }
+  trip.status = status;
+  trip.actualDeparture = actualDeparture;
+  const fakeReq2 = { user: { id: req.driver.driverId, name: req.driver.driverId, role: 'Driver' }, headers: req.headers, socket: req.socket };
+  logAudit(fakeReq2, 'driver.trip.status', { tripId: trip.id, status });
   res.json({ success: true, trip });
 });
 

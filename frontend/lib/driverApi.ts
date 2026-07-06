@@ -24,4 +24,6 @@ export const driverApi = {
   myTrips: () => request('/driver/trips'),
   respondToTrip: (id: string, decision: 'Accepted' | 'Rejected', reason?: string) =>
     request(`/driver/trips/${id}/respond`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) }),
+  updateTripStatus: (id: string, status: 'In Transit' | 'Completed') =>
+    request(`/driver/trips/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 };

@@ -5,7 +5,7 @@ import { driverApi } from '@/lib/driverApi';
 interface DriverTrip {
   id: string; voucherNo: string; origin: string; destination: string;
   customer: string; cargo: string; content: string; weight: number; packages: number;
-  plannedDate: string; eta: string; distance: number;
+  plannedDate: string; eta: string; distance: number; status: string;
   vehicleRegNumber: string;
   driverAcceptanceStatus: 'Pending' | 'Accepted' | 'Rejected';
   driverRejectionReason: string | null;
@@ -17,12 +17,19 @@ const STATUS_STYLES: Record<string, string> = {
   Rejected: 'bg-red-100 text-red-700',
 };
 
+const TRIP_STATUS_STYLES: Record<string, string> = {
+  Planned: 'bg-slate-100 text-slate-600',
+  'In Transit': 'bg-blue-100 text-blue-700',
+  Completed: 'bg-green-100 text-green-700',
+};
+
 export default function DriverTripsPage() {
   const [trips, setTrips] = useState<DriverTrip[]>([]);
   const [loading, setLoading] = useState(true);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -44,6 +51,23 @@ export default function DriverTripsPage() {
     }
   }
 
+  async function updateStatus(id: string, status: 'In Transit' | 'Completed') {
+    setUpdatingStatusId(id);
+    setError('');
+    try {
+      const res = await driverApi.updateTripStatus(id, status);
+      if (status === 'Completed') {
+        setTrips(prev => prev.filter(t => t.id !== id));
+      } else {
+        setTrips(prev => prev.map(t => t.id === id ? { ...t, status: res.trip.status } : t));
+      }
+    } catch {
+      setError('Failed to update trip status. Please try again.');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
 
   return (
@@ -61,9 +85,14 @@ export default function DriverTripsPage() {
         <div key={t.id} className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-mono text-xs font-bold text-slate-500">{t.voucherNo}</span>
-            <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[t.driverAcceptanceStatus]}`}>
-              {t.driverAcceptanceStatus}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${TRIP_STATUS_STYLES[t.status] || 'bg-slate-100 text-slate-500'}`}>
+                {t.status}
+              </span>
+              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLES[t.driverAcceptanceStatus]}`}>
+                {t.driverAcceptanceStatus}
+              </span>
+            </div>
           </div>
           <div className="text-base font-semibold text-slate-800">{t.origin} → {t.destination}</div>
           <div className="grid grid-cols-2 gap-2 text-sm text-slate-600">
@@ -107,6 +136,19 @@ export default function DriverTripsPage() {
                 </button>
               </div>
             )
+          )}
+
+          {t.driverAcceptanceStatus === 'Accepted' && t.status === 'Planned' && (
+            <button onClick={() => updateStatus(t.id, 'In Transit')} disabled={updatingStatusId === t.id}
+              className="w-full px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {updatingStatusId === t.id ? 'Starting...' : 'Start Trip'}
+            </button>
+          )}
+          {t.driverAcceptanceStatus === 'Accepted' && t.status === 'In Transit' && (
+            <button onClick={() => updateStatus(t.id, 'Completed')} disabled={updatingStatusId === t.id}
+              className="w-full px-3 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
+              {updatingStatusId === t.id ? 'Submitting...' : 'Mark Delivered'}
+            </button>
           )}
         </div>
       ))}
