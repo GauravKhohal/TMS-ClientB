@@ -147,6 +147,7 @@ model Trip {
   consigneeContact   String?
   driverAcceptanceStatus String @default("Pending")
   driverRejectionReason  String?
+  podUrl                 String?
   createdAt        DateTime @default(now())
 }
 

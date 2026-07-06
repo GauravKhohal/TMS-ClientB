@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { driverApi } from '@/lib/driverApi';
+import { readFileAsDataUrl } from '@/lib/files';
 
 interface DriverTrip {
   id: string; voucherNo: string; origin: string; destination: string;
@@ -30,6 +31,8 @@ export default function DriverTripsPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+  const [podUploadId, setPodUploadId] = useState<string | null>(null);
+  const [podFile, setPodFile] = useState<File | undefined>(undefined);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -51,13 +54,16 @@ export default function DriverTripsPage() {
     }
   }
 
-  async function updateStatus(id: string, status: 'In Transit' | 'Completed') {
+  async function updateStatus(id: string, status: 'In Transit' | 'Completed', pod?: File) {
     setUpdatingStatusId(id);
     setError('');
     try {
-      const res = await driverApi.updateTripStatus(id, status);
+      const podData = pod ? await readFileAsDataUrl(pod) : undefined;
+      const res = await driverApi.updateTripStatus(id, status, podData);
       if (status === 'Completed') {
         setTrips(prev => prev.filter(t => t.id !== id));
+        setPodUploadId(null);
+        setPodFile(undefined);
       } else {
         setTrips(prev => prev.map(t => t.id === id ? { ...t, status: res.trip.status } : t));
       }
@@ -145,10 +151,29 @@ export default function DriverTripsPage() {
             </button>
           )}
           {t.driverAcceptanceStatus === 'Accepted' && t.status === 'In Transit' && (
-            <button onClick={() => updateStatus(t.id, 'Completed')} disabled={updatingStatusId === t.id}
-              className="w-full px-3 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50">
-              {updatingStatusId === t.id ? 'Submitting...' : 'Mark Delivered'}
-            </button>
+            podUploadId === t.id ? (
+              <div className="space-y-2 pt-1">
+                <label className="block text-xs font-medium text-slate-600">Proof of delivery photo (required)</label>
+                <input type="file" accept="image/*" capture="environment"
+                  onChange={e => setPodFile(e.target.files?.[0])}
+                  className="w-full text-xs text-slate-500 border border-slate-200 rounded-lg file:mr-2 file:py-1.5 file:px-2 file:border-0 file:bg-slate-100 file:text-xs file:font-medium file:text-slate-600 hover:file:bg-slate-200" />
+                {podFile && <div className="text-xs text-green-600 truncate">Selected: {podFile.name}</div>}
+                <div className="flex gap-2">
+                  <button onClick={() => { setPodUploadId(null); setPodFile(undefined); }}
+                    className="flex-1 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg">Cancel</button>
+                  <button disabled={!podFile || updatingStatusId === t.id}
+                    onClick={() => updateStatus(t.id, 'Completed', podFile)}
+                    className="flex-1 px-3 py-2 text-sm font-medium bg-green-600 text-white rounded-lg disabled:opacity-50">
+                    {updatingStatusId === t.id ? 'Uploading...' : 'Confirm Delivery'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setPodUploadId(t.id)}
+                className="w-full px-3 py-2 text-sm font-medium bg-green-600 text-white rounded-lg hover:bg-green-700">
+                Mark Delivered
+              </button>
+            )
           )}
         </div>
       ))}

@@ -19,17 +19,22 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-// Uploads a compliance document (base64 data URI from the browser) to Cloudinary
-// and returns its public URL. `resource_type: 'auto'` handles both scanned
-// photos and PDFs. Overwrites the previous file for the same vehicle+doc type.
-async function uploadComplianceDocument(base64DataUri, vehicleId, docType) {
+// Uploads a base64 data URI (from the browser) to Cloudinary and returns its
+// public URL. `resource_type: 'auto'` handles both photos and PDFs. Overwrites
+// whatever was previously stored at the same folder+public_id.
+async function uploadToCloudinary(base64DataUri, folder, publicId) {
   const result = await cloudinary.uploader.upload(base64DataUri, {
-    folder: `compliance/${vehicleId}`,
-    public_id: docType,
-    resource_type: 'auto',
-    overwrite: true,
+    folder, public_id: publicId, resource_type: 'auto', overwrite: true,
   });
   return result.secure_url;
+}
+
+function uploadComplianceDocument(base64DataUri, vehicleId, docType) {
+  return uploadToCloudinary(base64DataUri, `compliance/${vehicleId}`, docType);
+}
+
+function uploadTripPod(base64DataUri, tripId) {
+  return uploadToCloudinary(base64DataUri, `trip-pod/${tripId}`, 'pod');
 }
 
 // Persistent store for users/vehicles/drivers/trips/fuel/maintenance/compliance/
@@ -194,6 +199,7 @@ function tripDbFields(t) {
     consigneeName: t.consigneeName ?? null, consigneeAddress: t.consigneeAddress ?? null,
     consigneeContact: t.consigneeContact ?? null,
     driverAcceptanceStatus: t.driverAcceptanceStatus ?? 'Pending', driverRejectionReason: t.driverRejectionReason ?? null,
+    podUrl: t.podUrl ?? null,
   };
 }
 
@@ -485,22 +491,35 @@ app.patch('/api/driver/trips/:id/status', driverAuth, async (req, res) => {
   if (!isMine) return res.status(403).json({ error: 'This trip is not assigned to you.' });
   if (trip.driverAcceptanceStatus !== 'Accepted') return res.status(400).json({ error: 'Accept this trip before updating its status.' });
 
-  const { status } = req.body;
+  const { status, pod } = req.body;
   const expectedNext = DRIVER_STATUS_TRANSITIONS[trip.status];
   if (status !== expectedNext) return res.status(400).json({ error: `Cannot move from ${trip.status} to ${status}.` });
 
+  const completingTrip = status === 'Completed';
+  if (completingTrip && !pod) return res.status(400).json({ error: 'A proof-of-delivery photo is required to mark this trip delivered.' });
+
+  let podUrl = trip.podUrl;
+  if (completingTrip) {
+    try { podUrl = await uploadTripPod(pod, trip.id); }
+    catch (e) {
+      console.error(`Failed to upload POD photo for trip ${trip.id}:`, e.message);
+      return res.status(500).json({ error: 'Failed to upload the proof-of-delivery photo. Please try again.' });
+    }
+  }
+
   const startingTrip = status === 'In Transit';
   const actualDeparture = startingTrip ? (trip.actualDeparture || new Date().toISOString().slice(0, 10)) : trip.actualDeparture;
+  const data = { status, actualDeparture };
+  if (completingTrip) { data.podUrl = podUrl; data.pod = true; }
   try {
-    await prisma.trip.update({ where: { id: trip.id }, data: { status, actualDeparture } });
+    await prisma.trip.update({ where: { id: trip.id }, data });
   } catch (e) {
     console.error('Failed to persist driver trip status update:', e.message);
     return res.status(500).json({ error: 'Failed to update trip status. Please try again.' });
   }
-  trip.status = status;
-  trip.actualDeparture = actualDeparture;
+  Object.assign(trip, data);
   const fakeReq2 = { user: { id: req.driver.driverId, name: req.driver.driverId, role: 'Driver' }, headers: req.headers, socket: req.socket };
-  logAudit(fakeReq2, 'driver.trip.status', { tripId: trip.id, status });
+  logAudit(fakeReq2, 'driver.trip.status', { tripId: trip.id, status, podUploaded: completingTrip });
   res.json({ success: true, trip });
 });
 
@@ -787,7 +806,7 @@ app.post('/api/trips', auth, requireRole('Fleet Manager', 'Dispatcher'), async (
     rejectionReason: '',
     actualDeparture: null, actualKm: 0, tollCost: 0, fuelCost: 0, pod: false, delay: 0,
     stops: (data.viaStops || []).map(s => s.city),
-    driverAcceptanceStatus: 'Pending', driverRejectionReason: null,
+    driverAcceptanceStatus: 'Pending', driverRejectionReason: null, podUrl: null,
   };
   try { await prisma.trip.create({ data: { id: newTrip.id, ...tripDbFields(newTrip) } }); }
   catch (e) {
