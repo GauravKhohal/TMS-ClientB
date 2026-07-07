@@ -1375,11 +1375,11 @@ app.get('/api/alerts', auth, (req, res) => {
           id: `AUTO-${r.vehicleId}-${c.name.replace(/\s/g, '')}`,
           type: days < 0 ? 'Compliance Expired' : 'Compliance Expiring',
           severity: days < 0 ? 'Critical' : days <= 7 ? 'High' : 'Medium',
-          vehicle: regNum,
+          vehicleId: regNum,
           message: days < 0
             ? `${c.name} EXPIRED ${Math.abs(days)} days ago for ${regNum}`
             : `${c.name} expiring in ${days} day${days === 1 ? '' : 's'} for ${regNum}`,
-          time: 'Auto-generated',
+          timestamp: new Date().toISOString(),
           read: false,
         });
       }
@@ -1394,14 +1394,35 @@ app.get('/api/alerts', auth, (req, res) => {
         id: `AUTO-DL-${d.id}`,
         type: days < 0 ? 'License Expired' : 'License Expiring',
         severity: days < 0 ? 'Critical' : days <= 30 ? 'High' : 'Medium',
-        vehicle: 'Driver',
+        vehicleId: 'Driver',
         message: days < 0
           ? `${d.name}'s driving license EXPIRED ${Math.abs(days)} days ago`
           : `${d.name}'s driving license expiring in ${days} day${days === 1 ? '' : 's'}`,
-        time: 'Auto-generated',
+        timestamp: new Date().toISOString(),
         read: false,
       });
     }
+  });
+
+  // Driver rejected a placed trip — needs reassignment. Live-computed from
+  // trip state (same as the alerts above), so it clears itself once the trip
+  // is re-placed (which resets driverAcceptanceStatus back to Pending) or
+  // moves past Completed/Cancelled.
+  trips.forEach(t => {
+    if (t.driverAcceptanceStatus !== 'Rejected' || !t.placementConfirmed) return;
+    if (t.status === 'Completed' || t.status === 'Cancelled') return;
+    const vehicle = vehicles.find(v => v.id === t.vehicleId);
+    const driver = drivers.find(d => d.id === t.driverId);
+    autoAlerts.push({
+      id: `AUTO-REJECT-${t.id}`,
+      type: 'Driver Rejected Trip',
+      severity: 'High',
+      vehicleId: vehicle?.regNumber || t.vehicleId,
+      message: `${driver?.name || 'Driver'} rejected trip ${t.voucherNo} (${t.origin} → ${t.destination})`
+        + (t.driverRejectionReason ? `: "${t.driverRejectionReason}"` : '') + ' — needs reassignment.',
+      timestamp: new Date().toISOString(),
+      read: false,
+    });
   });
 
   res.json([...autoAlerts, ...alerts]);
