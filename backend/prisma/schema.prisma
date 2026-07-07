@@ -38,6 +38,7 @@ model Vehicle {
   location        Json
   speed           Int
   lastService     String
+  lastServiceOdometer Int?
   insurance       String
   fitness         String
   permit          String

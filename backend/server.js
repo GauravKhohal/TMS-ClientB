@@ -1105,13 +1105,15 @@ app.post('/api/maintenance', auth, requireRole('Fleet Manager', 'Dispatcher'), a
   maintenanceRecords.unshift(newRecord);
   logAudit(req, 'maintenance.add', { recordId: newRecord.id, vehicleId, type, cost: newRecord.cost });
 
-  // Keep the vehicle's last-service date current — best-effort, since the
+  // Keep the vehicle's last-service date (and the odometer reading at that
+  // time, for preventive-maintenance alerts) current — best-effort, since the
   // maintenance record itself (the primary record here) already succeeded.
   const vehicle = vehicles.find(v => v.id === vehicleId);
   if (vehicle && date > (vehicle.lastService || '')) {
     try {
-      await prisma.vehicle.update({ where: { id: vehicleId }, data: { lastService: date } });
+      await prisma.vehicle.update({ where: { id: vehicleId }, data: { lastService: date, lastServiceOdometer: vehicle.odometer } });
       vehicle.lastService = date;
+      vehicle.lastServiceOdometer = vehicle.odometer;
     } catch (e) { console.error('Failed to sync vehicle last service date:', e.message); }
   }
 
@@ -1477,6 +1479,46 @@ app.get('/api/alerts', auth, (req, res) => {
       severity: daysLate >= 2 ? 'High' : 'Medium',
       vehicleId: vehicle?.regNumber || t.vehicleId || t.voucherNo,
       message: `Trip ${t.voucherNo} (${t.origin} → ${t.destination}) is ${daysLate} day${daysLate === 1 ? '' : 's'} past its ETA (${t.eta}) and not yet delivered.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    });
+  });
+
+  // Preventive maintenance — due by whichever comes first, distance or time
+  // since the last service. `lastServiceOdometer` is only populated once a
+  // maintenance record has been logged after this feature shipped, so older
+  // vehicles fall back to the date-based check until their next service.
+  const SERVICE_INTERVAL_KM = 10000;
+  const SERVICE_INTERVAL_DAYS = 90;
+  vehicles.forEach(v => {
+    if (!v.lastService) {
+      autoAlerts.push({
+        id: `AUTO-SERVICE-${v.id}`,
+        type: 'Service Overdue',
+        severity: 'High',
+        vehicleId: v.regNumber,
+        message: `${v.regNumber} has no service record on file.`,
+        timestamp: new Date().toISOString(),
+        read: false,
+      });
+      return;
+    }
+    const daysSince = Math.floor((today - new Date(v.lastService)) / 86400000);
+    const kmSince = v.lastServiceOdometer != null ? v.odometer - v.lastServiceOdometer : null;
+    const kmOverdue = kmSince !== null && kmSince >= SERVICE_INTERVAL_KM;
+    const daysOverdue = daysSince >= SERVICE_INTERVAL_DAYS;
+    if (!kmOverdue && !daysOverdue) return;
+
+    const severity = (kmSince !== null && kmSince >= SERVICE_INTERVAL_KM * 1.5) || daysSince >= SERVICE_INTERVAL_DAYS * 1.5 ? 'High' : 'Medium';
+    const reason = kmOverdue
+      ? `${kmSince.toLocaleString('en-IN')} km since last service (threshold ${SERVICE_INTERVAL_KM.toLocaleString('en-IN')} km)`
+      : `${daysSince} days since last service (threshold ${SERVICE_INTERVAL_DAYS} days)`;
+    autoAlerts.push({
+      id: `AUTO-SERVICE-${v.id}`,
+      type: 'Service Due',
+      severity,
+      vehicleId: v.regNumber,
+      message: `${v.regNumber} is due for service: ${reason}.`,
       timestamp: new Date().toISOString(),
       read: false,
     });
