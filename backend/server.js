@@ -1425,6 +1425,51 @@ app.get('/api/alerts', auth, (req, res) => {
     });
   });
 
+  // Low/out-of-stock spare parts — already computed for the Spares page
+  // summary, just never made it into the shared Alerts feed.
+  spareParts.forEach(p => {
+    if (p.currentStock > p.reorderLevel) return;
+    const outOfStock = p.currentStock === 0;
+    autoAlerts.push({
+      id: `AUTO-SPARE-${p.id}`,
+      type: outOfStock ? 'Spare Out of Stock' : 'Spare Low Stock',
+      severity: outOfStock ? 'High' : 'Medium',
+      vehicleId: 'Spares',
+      message: outOfStock
+        ? `${p.name} (${p.partNo}) is out of stock.`
+        : `${p.name} (${p.partNo}) stock at ${p.currentStock} ${p.unit}, at or below reorder level (${p.reorderLevel}).`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    });
+  });
+
+  // Low driver payout pool balance
+  if (payoutPool.balance < payoutPool.lowBalanceThreshold) {
+    autoAlerts.push({
+      id: 'AUTO-PAYOUT-LOW-BALANCE',
+      type: 'Low Payout Balance',
+      severity: 'High',
+      vehicleId: 'Payouts',
+      message: `Driver payout pool balance (₹${payoutPool.balance.toLocaleString('en-IN')}) is below the ₹${payoutPool.lowBalanceThreshold.toLocaleString('en-IN')} threshold.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    });
+  }
+
+  // Toll reconciliations awaiting review
+  const pendingTollCount = tollReconciliations.filter(r => r.status !== 'Reconciled').length;
+  if (pendingTollCount > 0) {
+    autoAlerts.push({
+      id: 'AUTO-TOLL-PENDING',
+      type: 'Toll Reconciliation Pending',
+      severity: 'Low',
+      vehicleId: 'Toll',
+      message: `${pendingTollCount} trip${pendingTollCount === 1 ? '' : 's'} awaiting toll reconciliation.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    });
+  }
+
   res.json([...autoAlerts, ...alerts]);
 });
 
