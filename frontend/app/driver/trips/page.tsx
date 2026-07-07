@@ -33,6 +33,10 @@ export default function DriverTripsPage() {
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   const [podUploadId, setPodUploadId] = useState<string | null>(null);
   const [podFile, setPodFile] = useState<File | undefined>(undefined);
+  const [fuelLogId, setFuelLogId] = useState<string | null>(null);
+  const [fuelForm, setFuelForm] = useState({ liters: '', pricePerLiter: '', odometer: '', station: '' });
+  const [loggingFuel, setLoggingFuel] = useState(false);
+  const [fuelToast, setFuelToast] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -74,12 +78,32 @@ export default function DriverTripsPage() {
     }
   }
 
+  async function logFuel() {
+    setLoggingFuel(true);
+    setError('');
+    try {
+      await driverApi.logFuel(
+        parseFloat(fuelForm.liters), parseFloat(fuelForm.pricePerLiter),
+        parseInt(fuelForm.odometer), fuelForm.station || undefined,
+      );
+      setFuelLogId(null);
+      setFuelForm({ liters: '', pricePerLiter: '', odometer: '', station: '' });
+      setFuelToast('Fuel entry logged.');
+      setTimeout(() => setFuelToast(''), 3000);
+    } catch {
+      setError('Failed to log fuel entry. Please try again.');
+    } finally {
+      setLoggingFuel(false);
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" /></div>;
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-bold text-slate-800">My Trips</h1>
       {error && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">{error}</div>}
+      {fuelToast && <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-3 py-2 rounded-lg">{fuelToast}</div>}
 
       {trips.length === 0 && (
         <div className="bg-white rounded-xl border border-slate-100 p-6 text-center text-sm text-slate-400">
@@ -112,6 +136,42 @@ export default function DriverTripsPage() {
 
           {t.driverAcceptanceStatus === 'Rejected' && t.driverRejectionReason && (
             <div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">Reason: {t.driverRejectionReason}</div>
+          )}
+
+          {t.driverAcceptanceStatus === 'Accepted' && (
+            fuelLogId === t.id ? (
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <label className="block text-xs font-medium text-slate-600 pt-2">Log Fuel Fill-up</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="number" min="0" step="0.1" placeholder="Litres" value={fuelForm.liters}
+                    onChange={e => setFuelForm(f => ({ ...f, liters: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input type="number" min="0" step="0.01" placeholder="Price/Litre (₹)" value={fuelForm.pricePerLiter}
+                    onChange={e => setFuelForm(f => ({ ...f, pricePerLiter: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input type="number" min="0" placeholder="Odometer (km)" value={fuelForm.odometer}
+                    onChange={e => setFuelForm(f => ({ ...f, odometer: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  <input type="text" placeholder="Station (optional)" value={fuelForm.station}
+                    onChange={e => setFuelForm(f => ({ ...f, station: e.target.value }))}
+                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setFuelLogId(null); setFuelForm({ liters: '', pricePerLiter: '', odometer: '', station: '' }); }}
+                    className="flex-1 px-3 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg">Cancel</button>
+                  <button disabled={!fuelForm.liters || !fuelForm.pricePerLiter || !fuelForm.odometer || loggingFuel}
+                    onClick={logFuel}
+                    className="flex-1 px-3 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg disabled:opacity-50">
+                    {loggingFuel ? 'Saving...' : 'Save Fuel Entry'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setFuelLogId(t.id)}
+                className="w-full px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50">
+                Log Fuel
+              </button>
+            )
           )}
 
           {t.driverAcceptanceStatus === 'Pending' && (

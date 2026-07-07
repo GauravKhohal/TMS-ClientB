@@ -523,6 +523,34 @@ app.patch('/api/driver/trips/:id/status', driverAuth, async (req, res) => {
   res.json({ success: true, trip });
 });
 
+// Driver fuel logging — attaches to whichever vehicle/trip is currently
+// active for this driver (no vehicle picker needed, unlike the Fleet
+// Manager's fuel form, since a driver only ever has one active assignment).
+// Reuses addFuelEntry, defined further down alongside the Fleet Manager's
+// own /api/fuel route.
+app.post('/api/driver/fuel', driverAuth, async (req, res) => {
+  const activeTrip = findDriverActiveTrips(req.driver.driverId)[0];
+  if (!activeTrip) return res.status(400).json({ error: 'No active trip to log fuel against.' });
+
+  const { liters, pricePerLiter, odometer, station } = req.body;
+  if (!liters || !pricePerLiter || !odometer) {
+    return res.status(400).json({ error: 'Litres, price per litre and odometer are required' });
+  }
+  let newEntry;
+  try {
+    newEntry = await addFuelEntry({
+      vehicleId: activeTrip.vehicleId, date: new Date().toISOString().slice(0, 10),
+      liters, pricePerLiter, odometer, station, fuelCardUsed: false, tripId: activeTrip.id,
+    });
+  } catch (e) {
+    console.error('Failed to persist driver fuel entry:', e.message);
+    return res.status(500).json({ error: 'Failed to save fuel entry. Please try again.' });
+  }
+  const fakeReq3 = { user: { id: req.driver.driverId, name: req.driver.driverId, role: 'Driver' }, headers: req.headers, socket: req.socket };
+  logAudit(fakeReq3, 'driver.fuel.add', { entryId: newEntry.id, vehicleId: activeTrip.vehicleId, tripId: activeTrip.id, liters, totalCost: newEntry.totalCost });
+  res.json(newEntry);
+});
+
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // Computes real fleet-wide analytics (revenue/cost trend, fuel trend, vehicle
@@ -1004,13 +1032,11 @@ app.post('/api/consignments', auth, requireRole('Fleet Manager', 'Dispatcher'), 
 app.get('/api/fuel', auth, (req, res) => res.json(fuelEntries));
 app.get('/api/fuel/vehicle/:vehicleId', auth, (req, res) => res.json(fuelEntries.filter(f => f.vehicleId === req.params.vehicleId)));
 
-app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
-  const { vehicleId, date, liters, pricePerLiter, odometer, station, fuelCardUsed, tripId } = req.body;
-  if (!vehicleId || !date || !liters || !pricePerLiter || !odometer) {
-    return res.status(400).json({ error: 'Vehicle, date, litres, price per litre and odometer are required' });
-  }
-  // KM/L is derived from the distance since this vehicle's last fill-up — 0 if
-  // there's no prior reading to compare against (first entry for the vehicle).
+// Shared by the Fleet Manager's fuel form and the driver app's in-trip fuel
+// log — computes KM/L from the distance since this vehicle's last fill-up
+// (0 if there's no prior reading), persists the entry, and best-effort syncs
+// the vehicle's odometer forward from the reading.
+async function addFuelEntry({ vehicleId, date, liters, pricePerLiter, odometer, station, fuelCardUsed, tripId }) {
   const previous = fuelEntries
     .filter(f => f.vehicleId === vehicleId && f.odometer < odometer)
     .sort((a, b) => b.odometer - a.odometer)[0];
@@ -1025,17 +1051,9 @@ app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (r
     fuelCardUsed: !!fuelCardUsed,
     tripId: tripId || null,
   };
-  try { await prisma.fuelEntry.create({ data: newEntry }); }
-  catch (e) {
-    console.error('Failed to persist fuel entry:', e.message);
-    return res.status(500).json({ error: 'Failed to save fuel entry. Please try again.' });
-  }
+  await prisma.fuelEntry.create({ data: newEntry });
   fuelEntries.unshift(newEntry);
-  logAudit(req, 'fuel.add', { entryId: newEntry.id, vehicleId, liters, totalCost: newEntry.totalCost });
 
-  // Keep the vehicle's odometer current from fill-up readings — best-effort,
-  // since the fuel entry itself (the primary record here) already succeeded.
-  // Only moves forward, so backfilling an older/historical entry can't undo it.
   const vehicle = vehicles.find(v => v.id === vehicleId);
   if (vehicle && odometer > (vehicle.odometer || 0)) {
     try {
@@ -1043,7 +1061,21 @@ app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (r
       vehicle.odometer = odometer;
     } catch (e) { console.error('Failed to sync vehicle odometer:', e.message); }
   }
+  return newEntry;
+}
 
+app.post('/api/fuel', auth, requireRole('Fleet Manager', 'Dispatcher'), async (req, res) => {
+  const { vehicleId, date, liters, pricePerLiter, odometer, station, fuelCardUsed, tripId } = req.body;
+  if (!vehicleId || !date || !liters || !pricePerLiter || !odometer) {
+    return res.status(400).json({ error: 'Vehicle, date, litres, price per litre and odometer are required' });
+  }
+  let newEntry;
+  try { newEntry = await addFuelEntry({ vehicleId, date, liters, pricePerLiter, odometer, station, fuelCardUsed, tripId }); }
+  catch (e) {
+    console.error('Failed to persist fuel entry:', e.message);
+    return res.status(500).json({ error: 'Failed to save fuel entry. Please try again.' });
+  }
+  logAudit(req, 'fuel.add', { entryId: newEntry.id, vehicleId, liters, totalCost: newEntry.totalCost });
   res.json(newEntry);
 });
 

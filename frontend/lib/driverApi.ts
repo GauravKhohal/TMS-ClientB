@@ -26,4 +26,6 @@ export const driverApi = {
     request(`/driver/trips/${id}/respond`, { method: 'PATCH', body: JSON.stringify({ decision, reason }) }),
   updateTripStatus: (id: string, status: 'In Transit' | 'Completed', pod?: string) =>
     request(`/driver/trips/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status, pod }) }),
+  logFuel: (liters: number, pricePerLiter: number, odometer: number, station?: string) =>
+    request('/driver/fuel', { method: 'POST', body: JSON.stringify({ liters, pricePerLiter, odometer, station }) }),
 };
