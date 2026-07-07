@@ -1457,6 +1457,31 @@ app.get('/api/alerts', auth, (req, res) => {
     });
   });
 
+  // Trip running late — ETA has passed but it hasn't been delivered/called
+  // off. This is intentionally alert-only, not a mutation of trip.status:
+  // the driver's own Planned -> In Transit -> Completed transitions already
+  // depend on trip.status, and overloading it with an auto-set "Delayed"
+  // value would either block those transitions or require duplicating them.
+  // Clears itself once the trip is completed/cancelled — no separate flag
+  // to reset.
+  trips.forEach(t => {
+    if (t.approvalStatus !== 'Approved' || !t.eta) return;
+    if (t.status === 'Completed' || t.status === 'Cancelled') return;
+    const etaDate = new Date(t.eta);
+    if (etaDate >= today) return;
+    const vehicle = vehicles.find(v => v.id === t.vehicleId);
+    const daysLate = Math.floor((today - etaDate) / 86400000);
+    autoAlerts.push({
+      id: `AUTO-DELAY-${t.id}`,
+      type: 'Trip Delayed',
+      severity: daysLate >= 2 ? 'High' : 'Medium',
+      vehicleId: vehicle?.regNumber || t.vehicleId || t.voucherNo,
+      message: `Trip ${t.voucherNo} (${t.origin} → ${t.destination}) is ${daysLate} day${daysLate === 1 ? '' : 's'} past its ETA (${t.eta}) and not yet delivered.`,
+      timestamp: new Date().toISOString(),
+      read: false,
+    });
+  });
+
   // Low/out-of-stock spare parts — already computed for the Spares page
   // summary, just never made it into the shared Alerts feed.
   spareParts.forEach(p => {
