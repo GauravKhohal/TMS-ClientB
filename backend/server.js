@@ -7,6 +7,8 @@ const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const http = require('http');
+const { Server } = require('socket.io');
 const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments } = require('./data/mockData');
 const indianCities = require('./data/indianCities');
 const { PrismaClient } = require('@prisma/client');
@@ -204,6 +206,7 @@ function tripDbFields(t) {
 }
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 5001;
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET env var is required — refusing to start with a guessable default.');
@@ -215,6 +218,10 @@ const JWT_SECRET = process.env.JWT_SECRET;
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
   : ['http://localhost:3000', 'http://localhost:3001'];
+
+// Live GPS tracking — vehicle position pushes from POST /api/gps/ping are
+// broadcast to any connected /tracking dashboards over this socket.
+const io = new Server(server, { cors: { origin: allowedOrigins, credentials: true } });
 
 app.use(cors({
   origin: allowedOrigins,
@@ -724,6 +731,32 @@ app.patch('/api/fleet/:id/emi-payment', auth, (req, res) => {
   v.emiHistory = history;
   logAudit(req, 'fleet.emi_payment', { vehicleId: v.id, regNumber: v.regNumber, month: monthKey, amount: v.monthlyEMI, emisPaid: v.emisPaid });
   res.json({ success: true, vehicle: v });
+});
+
+// GPS ingestion — generic webhook any telematics vendor's adapter can push to.
+// Authenticated with a shared API key (not a user JWT) since the caller is a
+// device/vendor backend, not a logged-in user. Vendor-specific payload formats
+// should be translated to this shape in a small adapter, not here.
+app.post('/api/gps/ping', (req, res) => {
+  const expectedKey = process.env.GPS_INGEST_KEY;
+  if (!expectedKey) return res.status(503).json({ error: 'GPS ingestion not configured (GPS_INGEST_KEY unset)' });
+  if (req.headers['x-api-key'] !== expectedKey) return res.status(401).json({ error: 'Invalid API key' });
+
+  const { vehicleId, regNumber, lat, lng, speed } = req.body;
+  if (typeof lat !== 'number' || typeof lng !== 'number') return res.status(400).json({ error: 'lat and lng must be numbers' });
+
+  const v = vehicleId ? vehicles.find(v => v.id === vehicleId) : vehicles.find(v => v.regNumber === regNumber);
+  if (!v) return res.status(404).json({ error: 'Vehicle not found (provide vehicleId or regNumber)' });
+
+  v.location = { lat, lng };
+  if (typeof speed === 'number') v.speed = speed;
+  const timestamp = new Date().toISOString();
+
+  prisma.vehicle.update({ where: { id: v.id }, data: { location: v.location, speed: v.speed } })
+    .catch(e => console.error('GPS ping: DB update failed:', e.message));
+
+  io.emit('gps:update', { vehicleId: v.id, regNumber: v.regNumber, lat, lng, speed: v.speed, timestamp });
+  res.json({ success: true });
 });
 
 // Drivers
@@ -2154,5 +2187,5 @@ app.post('/api/spares/:id/issue', auth, requireRole('Fleet Manager'), async (req
 loadFromDatabase()
   .catch(e => console.error('Failed to load data from database, falling back to mock data:', e.message))
   .finally(() => {
-    app.listen(PORT, () => console.log(`TMS Backend running on http://localhost:${PORT}`));
+    server.listen(PORT, () => console.log(`TMS Backend running on http://localhost:${PORT}`));
   });
