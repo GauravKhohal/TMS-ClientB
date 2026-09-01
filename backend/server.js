@@ -11,6 +11,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { vehicles, drivers, trips, fuelEntries, maintenanceRecords, complianceRecords, alerts, users, costings, tollRoutes, tollReconciliations, pettyCash, fastagAccounts, fastagTransactions, tyres, verificationLog, spareParts, spareLedger, payoutPool, consignments } = require('./data/mockData');
 const indianCities = require('./data/indianCities');
+const { startFieldTrackerPolling } = require('./integrations/fieldTracker');
 const { PrismaClient } = require('@prisma/client');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const cloudinary = require('cloudinary').v2;
@@ -2188,4 +2189,5 @@ loadFromDatabase()
   .catch(e => console.error('Failed to load data from database, falling back to mock data:', e.message))
   .finally(() => {
     server.listen(PORT, () => console.log(`TMS Backend running on http://localhost:${PORT}`));
+    startFieldTrackerPolling({ io, vehicles, drivers, prisma });
   });
