@@ -2189,5 +2189,5 @@ loadFromDatabase()
   .catch(e => console.error('Failed to load data from database, falling back to mock data:', e.message))
   .finally(() => {
     server.listen(PORT, () => console.log(`TMS Backend running on http://localhost:${PORT}`));
-    startFieldTrackerPolling({ io, vehicles, drivers, prisma });
+    startFieldTrackerPolling({ io, vehicles, drivers, trips, prisma });
   });

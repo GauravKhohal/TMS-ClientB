@@ -3,7 +3,9 @@
 // that POST /api/gps/ping produces — so the /tracking page lights up with no
 // frontend changes. A field-tracker driver is matched to a TMS driver by phone
 // number (same normalization as findDriverByPhone in server.js), then routed
-// to whichever vehicle that driver is currently assigned to.
+// to whichever vehicle that driver is currently placed on (Trip Management →
+// Vehicle Placement) — the same "active trip" resolution findDriverActiveTrips
+// uses for the driver mobile app, not the Vehicle.driverId static field.
 const POLL_INTERVAL_MS = 30000;
 
 function toWhatsAppNumber(phone) {
@@ -12,7 +14,17 @@ function toWhatsAppNumber(phone) {
   return digits.length === 10 ? `91${digits}` : digits; // assume Indian numbers without country code
 }
 
-function startFieldTrackerPolling({ io, vehicles, drivers, prisma }) {
+function findPlacedVehicleForDriver(driverId, trips, vehicles) {
+  const trip = trips.find(t => {
+    if (t.approvalStatus !== 'Approved' || !t.placementConfirmed) return false;
+    if (t.status === 'Completed' || t.status === 'Cancelled') return false;
+    const vehicleDriverId = vehicles.find(v => v.id === t.vehicleId)?.driver;
+    return t.driverId === driverId || vehicleDriverId === driverId;
+  });
+  return trip ? vehicles.find(v => v.id === trip.vehicleId) : null;
+}
+
+function startFieldTrackerPolling({ io, vehicles, drivers, trips, prisma }) {
   const apiUrl = process.env.FIELD_TRACKER_API_URL;
   const apiKey = process.env.FIELD_TRACKER_API_KEY;
   if (!apiUrl || !apiKey) {
@@ -36,7 +48,7 @@ function startFieldTrackerPolling({ io, vehicles, drivers, prisma }) {
       if (!phone) continue;
       const driver = drivers.find(d => toWhatsAppNumber(d.phone) === phone);
       if (!driver) continue;
-      const vehicle = vehicles.find(v => v.driver === driver.id);
+      const vehicle = findPlacedVehicleForDriver(driver.id, trips, vehicles);
       if (!vehicle) continue;
 
       vehicle.location = { lat: loc.latitude, lng: loc.longitude };
