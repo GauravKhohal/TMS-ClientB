@@ -12,14 +12,16 @@ datasource db {
 }
 
 model User {
-  id          String    @id
-  name        String
-  email       String    @unique
-  password    String
-  role        String
-  status      String
-  lastLogin   DateTime?
-  permissions Json
+  id              String    @id
+  name            String
+  email           String    @unique
+  password        String
+  role            String
+  status          String
+  lastLogin       DateTime?
+  permissions     Json
+  inviteToken     String?   @unique
+  inviteExpiresAt DateTime?
 }
 
 model Vehicle {

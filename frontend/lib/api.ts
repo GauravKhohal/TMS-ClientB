@@ -90,6 +90,10 @@ export const api = {
   costing: () => request('/costing'),
   analytics: () => request('/analytics'),
   users: () => request('/users'),
+  inviteUser: (data: { name: string; email: string; role: string }) =>
+    request('/users', { method: 'POST', body: JSON.stringify(data) }),
+  acceptInvite: (token: string, password: string) =>
+    request('/users/accept-invite', { method: 'POST', body: JSON.stringify({ token, password }) }),
   getActivity: () => request('/activity'),
   getAuditLog: () => request('/audit-log'),
   logPageVisit: (page: string) => request('/activity/visit', { method: 'POST', body: JSON.stringify({ page }) }),

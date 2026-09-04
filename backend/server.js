@@ -1618,7 +1618,73 @@ app.get('/api/costing', auth, (req, res) => {
 app.get('/api/analytics', auth, (req, res) => res.json(computeFleetAnalytics()));
 
 // Users
-app.get('/api/users', auth, (req, res) => res.json(users.map(({ password, ...u }) => u)));
+app.get('/api/users', auth, (req, res) => res.json(users.map(({ password, inviteToken, inviteExpiresAt, ...u }) => u)));
+
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// POST /api/users — Super Admin invites a teammate. No email/SMS service is
+// configured yet (same situation as the driver WhatsApp OTP above), so the
+// invite link is handed back in the response for the admin to share manually
+// until a real delivery channel is wired up.
+app.post('/api/users', auth, requireRole(), async (req, res) => {
+  try {
+    const { name, email, role } = req.body;
+    if (!name || !email || !role) return res.status(400).json({ error: 'name, email, and role are required' });
+    if (users.some(u => u.email.toLowerCase() === email.toLowerCase()))
+      return res.status(409).json({ error: 'A user with this email already exists' });
+
+    const inviteToken = crypto.randomBytes(24).toString('hex');
+    const inviteExpiresAt = new Date(Date.now() + INVITE_TTL_MS);
+    // Unusable until accept-invite sets a real one — the invitee never learns this value.
+    const placeholderPassword = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
+
+    const newUser = {
+      id: 'U' + Date.now(), name, email, password: placeholderPassword, role,
+      status: 'Pending', lastLogin: null, permissions: [],
+      inviteToken, inviteExpiresAt,
+    };
+    users.push(newUser);
+    await prisma.user.create({ data: newUser });
+    logAudit(req, 'user.invited', { userId: newUser.id, email, role });
+
+    const baseUrl = process.env.PUBLIC_APP_URL || allowedOrigins[0];
+    res.json({
+      success: true,
+      user: { id: newUser.id, name, email, role, status: newUser.status },
+      inviteLink: `${baseUrl}/accept-invite?token=${inviteToken}`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/users/accept-invite — public (no auth): the invitee sets their own
+// password. This is the only place a Pending user's password is ever set.
+app.post('/api/users/accept-invite', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: 'token and password are required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const user = users.find(u => u.inviteToken === token);
+    if (!user) return res.status(404).json({ error: 'Invalid or already-used invite link' });
+    if (!user.inviteExpiresAt || new Date(user.inviteExpiresAt) < new Date())
+      return res.status(410).json({ error: 'This invite link has expired. Ask your admin to send a new one.' });
+
+    user.password = await bcrypt.hash(password, 10);
+    user.status = 'Active';
+    user.inviteToken = null;
+    user.inviteExpiresAt = null;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: user.password, status: 'Active', inviteToken: null, inviteExpiresAt: null },
+    });
+
+    res.json({ success: true, email: user.email });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Activity tracking — page visits (fire-and-forget from frontend layout)
 app.post('/api/activity/visit', auth, (req, res) => {

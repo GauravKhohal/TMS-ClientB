@@ -4,7 +4,7 @@ import { api } from '@/lib/api';
 
 interface User {
   id: string; name: string; email: string; role: string;
-  status: string; lastLogin: string; permissions: string[];
+  status: string; lastLogin: string | null; permissions: string[];
 }
 
 interface LoginEvent { id: string; userId: string; userName: string; role: string; email: string; timestamp: string; ip: string; }
@@ -63,6 +63,8 @@ export default function UsersPage() {
   const [showInvite, setShowInvite] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE);
+  const [inviteLink, setInviteLink] = useState('');
+  const [inviteError, setInviteError] = useState('');
   const [editForm, setEditForm] = useState({ name: '', role: '' });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
@@ -79,28 +81,35 @@ export default function UsersPage() {
     setTimeout(() => setToast(''), 3000);
   }
 
-  function formatTime(ts: string) {
+  function formatTime(ts: string | null) {
+    if (!ts) return 'Never';
     return new Date(ts).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    const newUser: User = {
-      id: 'U' + Date.now(),
-      name: inviteForm.name,
-      email: inviteForm.email,
-      role: inviteForm.role,
-      status: 'Active',
-      lastLogin: new Date().toISOString(),
-      permissions: [],
-    };
-    setUsers(prev => [...prev, newUser]);
-    setInviteForm(EMPTY_INVITE);
+    setInviteError('');
+    try {
+      const res = await api.inviteUser(inviteForm) as { user: User; inviteLink: string };
+      setUsers(prev => [...prev, res.user]);
+      setInviteForm(EMPTY_INVITE);
+      setInviteLink(res.inviteLink);
+    } catch (err) {
+      let msg = 'Failed to send invite';
+      if (err instanceof Error) {
+        try { msg = JSON.parse(err.message).error || err.message; } catch { msg = err.message; }
+      }
+      setInviteError(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function closeInviteModal() {
     setShowInvite(false);
-    setSaving(false);
-    showToast(`Invitation sent to ${inviteForm.email}`);
+    setInviteLink('');
+    setInviteError('');
   }
 
   function openEdit(u: User) {
@@ -159,7 +168,7 @@ export default function UsersPage() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center">
           <h3 className="text-sm font-semibold text-slate-800">User Accounts</h3>
-          <button onClick={() => setShowInvite(true)}
+          <button onClick={() => { setInviteError(''); setInviteLink(''); setShowInvite(true); }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             Invite User
@@ -191,7 +200,7 @@ export default function UsersPage() {
                   <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[u.role] || 'bg-slate-100 text-slate-600'}`}>{u.role}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${u.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{u.status}</span>
+                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${u.status === 'Active' ? 'bg-green-100 text-green-700' : u.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{u.status}</span>
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500">{formatTime(u.lastLogin)}</td>
                 <td className="px-4 py-3">
@@ -333,34 +342,55 @@ export default function UsersPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-base font-bold text-slate-800">Invite User</h3>
-              <button onClick={() => setShowInvite(false)} className="text-slate-400 hover:text-slate-600">
+              <button onClick={closeInviteModal} className="text-slate-400 hover:text-slate-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <form onSubmit={handleInvite} className="p-6 space-y-4">
-              <Field label="Full Name *">
-                <input required value={inviteForm.name} onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))} placeholder="Priya Sharma" className={INPUT} />
-              </Field>
-              <Field label="Email Address *">
-                <input required type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="priya@company.com" className={INPUT} />
-              </Field>
-              <Field label="Role *">
-                <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className={SELECT}>
-                  <option>Viewer</option>
-                  <option>Dispatcher</option>
-                  <option>Fleet Manager</option>
-                  <option>Accountant</option>
-                  <option>Super Admin</option>
-                </select>
-              </Field>
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-                <button type="button" onClick={() => setShowInvite(false)} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
-                  {saving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                  {saving ? 'Sending...' : 'Send Invite'}
-                </button>
+            {inviteLink ? (
+              <div className="p-6 space-y-4">
+                <div className="bg-green-50 border border-green-200 text-green-700 text-sm px-3 py-2 rounded-lg">
+                  Account created. No email/SMS is set up yet, so share this set-password link with them directly:
+                </div>
+                <div className="flex gap-2">
+                  <input readOnly value={inviteLink} className={INPUT + ' font-mono text-xs'} onFocus={e => e.target.select()} />
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(inviteLink); showToast('Invite link copied'); }}
+                    className="px-3 py-2 text-sm font-medium bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 flex-shrink-0"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-slate-100">
+                  <button onClick={closeInviteModal} className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700">Done</button>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleInvite} className="p-6 space-y-4">
+                {inviteError && <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-3 py-2 rounded-lg">{inviteError}</div>}
+                <Field label="Full Name *">
+                  <input required value={inviteForm.name} onChange={e => setInviteForm(f => ({ ...f, name: e.target.value }))} placeholder="Priya Sharma" className={INPUT} />
+                </Field>
+                <Field label="Email Address *">
+                  <input required type="email" value={inviteForm.email} onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))} placeholder="priya@company.com" className={INPUT} />
+                </Field>
+                <Field label="Role *">
+                  <select value={inviteForm.role} onChange={e => setInviteForm(f => ({ ...f, role: e.target.value }))} className={SELECT}>
+                    <option>Viewer</option>
+                    <option>Dispatcher</option>
+                    <option>Fleet Manager</option>
+                    <option>Accountant</option>
+                    <option>Super Admin</option>
+                  </select>
+                </Field>
+                <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+                  <button type="button" onClick={closeInviteModal} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+                  <button type="submit" disabled={saving} className="px-5 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 flex items-center gap-2">
+                    {saving && <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                    {saving ? 'Sending...' : 'Send Invite'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
